@@ -7,6 +7,8 @@ import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Volume2, VolumeX, Play, Pause, RotateCcw } from "lucide-react"
+import { useLocale } from "@/lib/locale-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 // 泰语数字发音映射
 const thaiNumbers: { [key: number]: string } = {
@@ -89,10 +91,11 @@ const thaiNumbers: { [key: number]: string } = {
 }
 
 export function BingoGame() {
+  const { t } = useLocale()
   const [drawnNumbers, setDrawnNumbers] = useState<number[]>([])
   const [currentNumber, setCurrentNumber] = useState<number | null>(null)
   const [isAutoMode, setIsAutoMode] = useState(false)
-  const [autoInterval, setAutoInterval] = useState(3) // 秒
+  const [autoInterval, setAutoInterval] = useState(3)
   const [isSoundEnabled, setIsSoundEnabled] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -185,8 +188,11 @@ export function BingoGame() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 md:p-8">
       <div className="mx-auto max-w-6xl">
-        {/* 标题 */}
-        <div className="mb-8 text-center">
+        {/* 标题和语言切换 */}
+        <div className="mb-8 flex flex-col items-center gap-4">
+          <div className="flex w-full items-center justify-end">
+            <LanguageSwitcher />
+          </div>
           <h1 className="text-4xl font-bold text-white md:text-6xl">
             <span className="text-red-500">B</span>
             <span className="text-orange-500">I</span>
@@ -194,14 +200,14 @@ export function BingoGame() {
             <span className="text-green-500">G</span>
             <span className="text-blue-500">O</span>
           </h1>
-          <p className="mt-2 text-slate-400">抽数字游戏 - 泰语语音播报</p>
+          <p className="text-slate-400">{t("bingoSubtitle")}</p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* 当前抽到的数字 */}
           <Card className="border-slate-700 bg-slate-800/50 lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-white">当前数字</CardTitle>
+              <CardTitle className="text-white">{t("currentNumber")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col items-center justify-center gap-6">
@@ -225,7 +231,7 @@ export function BingoGame() {
                   </div>
                 ) : (
                   <div className="flex h-40 w-40 items-center justify-center rounded-full bg-slate-700 text-slate-400 md:h-56 md:w-56">
-                    <span className="text-xl">点击抽取</span>
+                    <span className="text-xl">{t("clickToDraw")}</span>
                   </div>
                 )}
 
@@ -238,7 +244,7 @@ export function BingoGame() {
                       disabled={remainingNumbers.length === 0}
                       className="bg-gradient-to-r from-blue-600 to-blue-700 text-lg hover:from-blue-700 hover:to-blue-800"
                     >
-                      抽取数字
+                      {t("drawNumber")}
                     </Button>
                   ) : (
                     <Button
@@ -253,11 +259,11 @@ export function BingoGame() {
                     >
                       {isPlaying ? (
                         <>
-                          <Pause className="mr-2 h-5 w-5" /> 暂停
+                          <Pause className="mr-2 h-5 w-5" /> {t("pause")}
                         </>
                       ) : (
                         <>
-                          <Play className="mr-2 h-5 w-5" /> 开始
+                          <Play className="mr-2 h-5 w-5" /> {t("start")}
                         </>
                       )}
                     </Button>
@@ -268,14 +274,14 @@ export function BingoGame() {
                     onClick={resetGame}
                     className="border-slate-600 bg-transparent text-lg text-slate-300 hover:bg-slate-700 hover:text-white"
                   >
-                    <RotateCcw className="mr-2 h-5 w-5" /> 重置
+                    <RotateCcw className="mr-2 h-5 w-5" /> {t("reset")}
                   </Button>
                 </div>
 
                 {/* 统计 */}
                 <div className="text-center text-slate-400">
                   <p>
-                    已抽: {drawnNumbers.length} / 75 | 剩余:{" "}
+                    {t("drawn")}: {drawnNumbers.length} / 75 | {t("remaining")}:{" "}
                     {remainingNumbers.length}
                   </p>
                 </div>
@@ -286,7 +292,7 @@ export function BingoGame() {
           {/* 设置面板 */}
           <Card className="border-slate-700 bg-slate-800/50">
             <CardHeader>
-              <CardTitle className="text-white">设置</CardTitle>
+              <CardTitle className="text-white">{t("settings")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* 语音开关 */}
@@ -297,7 +303,7 @@ export function BingoGame() {
                   ) : (
                     <VolumeX className="h-5 w-5" />
                   )}
-                  泰语语音播报
+                  {t("voiceBroadcast")}
                 </Label>
                 <Switch
                   id="sound"
@@ -309,7 +315,7 @@ export function BingoGame() {
               {/* 自动抽取开关 */}
               <div className="flex items-center justify-between">
                 <Label htmlFor="auto" className="text-slate-300">
-                  自动抽取模式
+                  {t("autoDrawMode")}
                 </Label>
                 <Switch
                   id="auto"
@@ -325,13 +331,13 @@ export function BingoGame() {
               {isAutoMode && (
                 <div className="space-y-3">
                   <Label className="text-slate-300">
-                    抽取间隔: {autoInterval} 秒
+                    {t("drawInterval")}: {autoInterval} {t("seconds")}
                   </Label>
                   <Slider
                     value={[autoInterval]}
                     onValueChange={([value]) => setAutoInterval(value)}
                     min={1}
-                    max={10}
+                    max={20}
                     step={1}
                     className="w-full"
                   />
@@ -340,7 +346,7 @@ export function BingoGame() {
 
               {/* 最近抽取的数字 */}
               <div className="space-y-3">
-                <Label className="text-slate-300">最近抽取</Label>
+                <Label className="text-slate-300">{t("recentDraws")}</Label>
                 <div className="flex flex-wrap gap-2">
                   {drawnNumbers.slice(-10).reverse().map((num, index) => (
                     <div
@@ -361,7 +367,7 @@ export function BingoGame() {
         {/* 所有数字网格 */}
         <Card className="mt-6 border-slate-700 bg-slate-800/50">
           <CardHeader>
-            <CardTitle className="text-white">数字板</CardTitle>
+            <CardTitle className="text-white">{t("numberBoard")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-5 gap-2">

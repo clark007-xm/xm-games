@@ -1,21 +1,29 @@
+"use client"
+
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLocale } from "@/lib/locale-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 export default function Home() {
+  const { t } = useLocale()
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 font-sans">
-      <main className="flex w-full max-w-3xl flex-col items-center gap-8 px-6 py-16 text-center">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 font-sans">
+      <div className="flex justify-end">
+        <LanguageSwitcher />
+      </div>
+      <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 py-8 text-center">
         <div className="flex flex-col gap-4">
           <h1 className="text-5xl font-bold tracking-tight text-white">
-            XM-Games
+            {t("appName")}
           </h1>
           <p className="max-w-md text-lg text-slate-400">
-            选择一个游戏开始玩吧
+            {t("selectGame")}
           </p>
         </div>
 
-        <div className="grid w-full gap-4 md:grid-cols-2">
+        <div className="grid w-full max-w-3xl gap-4 md:grid-cols-2">
           <Link href="/bingo" className="block">
             <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
               <CardHeader>
@@ -27,12 +35,12 @@ export default function Home() {
                   <span className="text-blue-500">O</span>
                 </CardTitle>
                 <CardDescription className="text-slate-400">
-                  抽数字游戏
+                  {t("bingoGame")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-slate-400">
-                  支持自动抽取和泰语语音播报的 Bingo 抽数字游戏
+                  {t("bingoDescription")}
                 </p>
               </CardContent>
             </Card>
