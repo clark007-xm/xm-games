@@ -13,6 +13,18 @@ export const translations = {
     // Common
     appName: "XM-Games",
     selectGame: "选择一个游戏开始玩吧",
+    start: "开始",
+    pause: "暂停",
+    resume: "继续",
+    restart: "重新开始",
+    reset: "重置",
+    gameOver: "游戏结束",
+    score: "分数",
+    highScore: "最高分",
+    finalScore: "最终分数",
+    level: "等级",
+    lines: "消除行数",
+    nextPiece: "下一个",
     
     // Bingo Draw
     bingo: "BINGO",
@@ -22,9 +34,6 @@ export const translations = {
     currentNumber: "当前数字",
     clickToDraw: "点击抽取",
     drawNumber: "抽取数字",
-    start: "开始",
-    pause: "暂停",
-    reset: "重置",
     drawn: "已抽",
     remaining: "剩余",
     settings: "设置",
@@ -51,11 +60,35 @@ export const translations = {
     resetMarks: "清除标记",
     markedCount: "已标记",
     markedNumbers: "已标记数字",
+
+    // Tetris
+    tetris: "俄罗斯方块",
+    tetrisDescription: "经典俄罗斯方块游戏，支持键盘和触屏操作",
+    tetrisControls: "方向键移动，↑ 旋转，空格键快速下落",
+    tetrisControlsMobile: "使用下方按钮控制",
+
+    // Snake
+    snake: "贪吃蛇",
+    snakeDescription: "经典贪吃蛇游戏，吃食物让蛇变长",
+    snakeControls: "使用方向键或 WASD 控制移动",
+    snakeControlsMobile: "使用下方按钮控制移动",
   },
   en: {
     // Common
     appName: "XM-Games",
     selectGame: "Choose a game to start playing",
+    start: "Start",
+    pause: "Pause",
+    resume: "Resume",
+    restart: "Restart",
+    reset: "Reset",
+    gameOver: "Game Over",
+    score: "Score",
+    highScore: "High Score",
+    finalScore: "Final Score",
+    level: "Level",
+    lines: "Lines",
+    nextPiece: "Next",
     
     // Bingo Draw
     bingo: "BINGO",
@@ -65,9 +98,6 @@ export const translations = {
     currentNumber: "Current Number",
     clickToDraw: "Click to Draw",
     drawNumber: "Draw Number",
-    start: "Start",
-    pause: "Pause",
-    reset: "Reset",
     drawn: "Drawn",
     remaining: "Remaining",
     settings: "Settings",
@@ -94,11 +124,35 @@ export const translations = {
     resetMarks: "Clear Marks",
     markedCount: "Marked",
     markedNumbers: "Marked Numbers",
+
+    // Tetris
+    tetris: "Tetris",
+    tetrisDescription: "Classic Tetris game with keyboard and touch controls",
+    tetrisControls: "Arrow keys to move, ↑ to rotate, Space for hard drop",
+    tetrisControlsMobile: "Use the buttons below to control",
+
+    // Snake
+    snake: "Snake",
+    snakeDescription: "Classic Snake game, eat food to grow longer",
+    snakeControls: "Use arrow keys or WASD to move",
+    snakeControlsMobile: "Use the buttons below to move",
   },
   th: {
     // Common
     appName: "XM-Games",
     selectGame: "เลือกเกมเพื่อเริ่มเล่น",
+    start: "เริ่ม",
+    pause: "หยุด",
+    resume: "ดำเนินต่อ",
+    restart: "เริ่มใหม่",
+    reset: "รีเซ็ต",
+    gameOver: "จบเกม",
+    score: "คะแนน",
+    highScore: "คะแนนสูงสุด",
+    finalScore: "คะแนนสุดท้าย",
+    level: "ระดับ",
+    lines: "เส้น",
+    nextPiece: "ถัดไป",
     
     // Bingo Draw
     bingo: "บิงโก",
@@ -108,9 +162,6 @@ export const translations = {
     currentNumber: "ตัวเลขปัจจุบัน",
     clickToDraw: "คลิกเพื่อจับฉลาก",
     drawNumber: "จับฉลาก",
-    start: "เริ่ม",
-    pause: "หยุด",
-    reset: "รีเซ็ต",
     drawn: "จับแล้ว",
     remaining: "เหลือ",
     settings: "ตั้งค่า",
@@ -137,6 +188,18 @@ export const translations = {
     resetMarks: "ล้างเครื่องหมาย",
     markedCount: "ทำเครื่องหมายแล้ว",
     markedNumbers: "ตัวเลขที่ทำเครื่องหมาย",
+
+    // Tetris
+    tetris: "เทตริส",
+    tetrisDescription: "เกมเทตริสคลาสสิกพร้อมการควบคุมด้วยคีย์บอร์ดและหน้าจอสัมผัส",
+    tetrisControls: "ปุ่มลูกศรเพื่อเลื่อน, ↑ เพื่อหมุน, Space เพื่อวางอย่างรวดเร็ว",
+    tetrisControlsMobile: "ใช้ปุ่มด้านล่างเพื่อควบคุม",
+
+    // Snake
+    snake: "งู",
+    snakeDescription: "เกมงูคลาสสิก กินอาหารเพื่อให้ยาวขึ้น",
+    snakeControls: "ใช้ปุ่มลูกศรหรือ WASD เพื่อเคลื่อนที่",
+    snakeControlsMobile: "ใช้ปุ่มด้านล่างเพื่อเคลื่อนที่",
   },
 } as const
 
