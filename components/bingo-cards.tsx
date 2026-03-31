@@ -55,14 +55,19 @@ function generateBingoCard(): (number | null)[][] {
   return transposed
 }
 
+// Helper to check if a cell is marked
+function isCellMarked(card: (number | null)[][], row: number, col: number, markedNumbers: Set<number>): boolean {
+  const num = card[row][col]
+  return num === null || markedNumbers.has(num) // FREE cell (null) is always marked
+}
+
 // Check if a card has Bingo
 function checkBingo(card: (number | null)[][], markedNumbers: Set<number>): boolean {
   // Check rows
   for (let row = 0; row < 5; row++) {
     let rowComplete = true
     for (let col = 0; col < 5; col++) {
-      const num = card[row][col]
-      if (num !== null && !markedNumbers.has(num)) {
+      if (!isCellMarked(card, row, col, markedNumbers)) {
         rowComplete = false
         break
       }
@@ -74,8 +79,7 @@ function checkBingo(card: (number | null)[][], markedNumbers: Set<number>): bool
   for (let col = 0; col < 5; col++) {
     let colComplete = true
     for (let row = 0; row < 5; row++) {
-      const num = card[row][col]
-      if (num !== null && !markedNumbers.has(num)) {
+      if (!isCellMarked(card, row, col, markedNumbers)) {
         colComplete = false
         break
       }
@@ -87,13 +91,30 @@ function checkBingo(card: (number | null)[][], markedNumbers: Set<number>): bool
   let diag1Complete = true
   let diag2Complete = true
   for (let i = 0; i < 5; i++) {
-    const num1 = card[i][i]
-    const num2 = card[i][4 - i]
-    if (num1 !== null && !markedNumbers.has(num1)) diag1Complete = false
-    if (num2 !== null && !markedNumbers.has(num2)) diag2Complete = false
+    if (!isCellMarked(card, i, i, markedNumbers)) diag1Complete = false
+    if (!isCellMarked(card, i, 4 - i, markedNumbers)) diag2Complete = false
   }
+  if (diag1Complete || diag2Complete) return true
 
-  return diag1Complete || diag2Complete
+  // Check outer four corners (positions: [0,0], [0,4], [4,0], [4,4])
+  const outerCorners = [
+    [0, 0], [0, 4], [4, 0], [4, 4]
+  ]
+  const outerCornersComplete = outerCorners.every(([row, col]) => 
+    isCellMarked(card, row, col, markedNumbers)
+  )
+  if (outerCornersComplete) return true
+
+  // Check inner four corners (positions: [1,1], [1,3], [3,1], [3,3])
+  const innerCorners = [
+    [1, 1], [1, 3], [3, 1], [3, 3]
+  ]
+  const innerCornersComplete = innerCorners.every(([row, col]) => 
+    isCellMarked(card, row, col, markedNumbers)
+  )
+  if (innerCornersComplete) return true
+
+  return false
 }
 
 declare global {
