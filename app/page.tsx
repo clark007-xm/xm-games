@@ -68,6 +68,42 @@ export default function Home() {
               </CardContent>
             </Card>
           </Link>
+
+          <Link href="/tetris" className="block">
+            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
+              <CardHeader>
+                <CardTitle className="text-cyan-400">
+                  {t("tetris")}
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  {t("tetris")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-400">
+                  {t("tetrisDescription")}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/snake" className="block">
+            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
+              <CardHeader>
+                <CardTitle className="text-green-400">
+                  {t("snake")}
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  {t("snake")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-400">
+                  {t("snakeDescription")}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </main>
     </div>
