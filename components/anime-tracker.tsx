@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
   DialogClose,
@@ -282,6 +283,9 @@ export function AnimeTracker() {
                   <DialogTitle>
                     {editingAnime ? t("editAnime") : t("addAnime")}
                   </DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                    {editingAnime ? t("editAnimeDescription") : t("addAnimeDescription")}
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
