@@ -419,86 +419,150 @@ export function ChineseChessGame() {
         </Card>
 
         {/* Chess Board */}
-        <div className="relative">
-          {/* Board background */}
+        <div 
+          className="relative rounded-lg border-4 border-amber-700 bg-[#d4a574]"
+          style={{
+            // 8 gaps between 9 columns, 9 gaps between 10 rows
+            // Cell size: 36px on mobile, scales up
+            width: "calc(36px * 8 + 32px)", // 8 gaps + padding
+            height: "calc(36px * 9 + 32px)", // 9 gaps + padding
+            padding: "16px",
+          }}
+        >
+          {/* SVG Board Lines - positioned to match intersections */}
+          <svg 
+            className="absolute"
+            style={{
+              left: "16px",
+              top: "16px",
+              width: "calc(36px * 8)",
+              height: "calc(36px * 9)",
+            }}
+            viewBox="0 0 288 324"
+            preserveAspectRatio="none"
+          >
+            {/* Horizontal lines - 10 lines for 10 rows */}
+            {Array.from({ length: 10 }).map((_, i) => (
+              <line
+                key={`h-${i}`}
+                x1={0}
+                y1={i * 36}
+                x2={288}
+                y2={i * 36}
+                stroke="#8b6914"
+                strokeWidth="1.5"
+              />
+            ))}
+            
+            {/* Vertical lines - top half (rows 0-4) */}
+            {Array.from({ length: 9 }).map((_, i) => (
+              <line
+                key={`vt-${i}`}
+                x1={i * 36}
+                y1={0}
+                x2={i * 36}
+                y2={144}
+                stroke="#8b6914"
+                strokeWidth="1.5"
+              />
+            ))}
+            
+            {/* Vertical lines - bottom half (rows 5-9) */}
+            {Array.from({ length: 9 }).map((_, i) => (
+              <line
+                key={`vb-${i}`}
+                x1={i * 36}
+                y1={180}
+                x2={i * 36}
+                y2={324}
+                stroke="#8b6914"
+                strokeWidth="1.5"
+              />
+            ))}
+            
+            {/* Border lines through river (left and right edges only) */}
+            <line x1={0} y1={144} x2={0} y2={180} stroke="#8b6914" strokeWidth="1.5" />
+            <line x1={288} y1={144} x2={288} y2={180} stroke="#8b6914" strokeWidth="1.5" />
+            
+            {/* Palace diagonals - top (columns 3-5, rows 0-2) */}
+            <line x1={108} y1={0} x2={180} y2={72} stroke="#8b6914" strokeWidth="1.5" />
+            <line x1={180} y1={0} x2={108} y2={72} stroke="#8b6914" strokeWidth="1.5" />
+            
+            {/* Palace diagonals - bottom (columns 3-5, rows 7-9) */}
+            <line x1={108} y1={252} x2={180} y2={324} stroke="#8b6914" strokeWidth="1.5" />
+            <line x1={180} y1={252} x2={108} y2={324} stroke="#8b6914" strokeWidth="1.5" />
+          </svg>
+
+          {/* River text */}
           <div 
-            className="rounded-lg border-4 border-amber-700 p-2 sm:p-4"
+            className="pointer-events-none absolute flex items-center justify-center"
             style={{ 
-              backgroundColor: "#d4a574",
-              backgroundImage: `
-                linear-gradient(to right, #8b6914 1px, transparent 1px),
-                linear-gradient(to bottom, #8b6914 1px, transparent 1px)
-              `,
-              backgroundSize: "calc(100% / 8) calc(100% / 9)",
+              left: "16px",
+              right: "16px",
+              top: "calc(16px + 36px * 4)",
+              height: "36px",
             }}
           >
-            {/* River */}
-            <div 
-              className="absolute left-2 right-2 flex items-center justify-center sm:left-4 sm:right-4"
-              style={{ 
-                top: "calc(50% - 2px)",
-                height: "calc(100% / 10)",
-                backgroundColor: "#b8956e",
-              }}
-            >
-              <span className="text-xs font-bold text-amber-800 sm:text-sm">
-                {locale === "zh" ? "楚河  汉界" : locale === "th" ? "แม่น้ำ" : "River"}
-              </span>
-            </div>
+            <span className="text-sm font-bold tracking-[0.3em] text-amber-800/50 sm:text-base sm:tracking-[0.5em]">
+              {locale === "zh" ? "楚河      汉界" : locale === "th" ? "แม่น้ำ" : "RIVER"}
+            </span>
+          </div>
 
-            {/* Board grid */}
-            <div className="relative grid" style={{ gridTemplateRows: "repeat(10, 1fr)", gap: "0" }}>
-              {board.map((row, rowIndex) => (
-                <div key={rowIndex} className="flex">
-                  {row.map((piece, colIndex) => {
-                    const isSelected = selectedPos?.row === rowIndex && selectedPos?.col === colIndex
-                    const isValidTarget = isValidMoveTarget(rowIndex, colIndex)
-                    const lastMove = moveHistory[moveHistory.length - 1]
-                    const isLastMoveFrom = lastMove?.from.row === rowIndex && lastMove?.from.col === colIndex
-                    const isLastMoveTo = lastMove?.to.row === rowIndex && lastMove?.to.col === colIndex
+          {/* Pieces layer - absolute positioned on intersections */}
+          <div className="relative" style={{ width: "calc(36px * 8)", height: "calc(36px * 9)" }}>
+            {board.map((row, rowIndex) => (
+              row.map((piece, colIndex) => {
+                const isSelected = selectedPos?.row === rowIndex && selectedPos?.col === colIndex
+                const isValidTarget = isValidMoveTarget(rowIndex, colIndex)
+                const lastMove = moveHistory[moveHistory.length - 1]
+                const isLastMoveFrom = lastMove?.from.row === rowIndex && lastMove?.from.col === colIndex
+                const isLastMoveTo = lastMove?.to.row === rowIndex && lastMove?.to.col === colIndex
 
-                    return (
-                      <button
-                        key={colIndex}
-                        onClick={() => handleCellClick(rowIndex, colIndex)}
+                return (
+                  <button
+                    key={`${rowIndex}-${colIndex}`}
+                    onClick={() => handleCellClick(rowIndex, colIndex)}
+                    className="absolute flex items-center justify-center transition-all"
+                    style={{
+                      left: `${colIndex * 36 - 18}px`,
+                      top: `${rowIndex * 36 - 18}px`,
+                      width: "36px",
+                      height: "36px",
+                      zIndex: isSelected ? 10 : 1,
+                    }}
+                  >
+                    {/* Last move highlight */}
+                    {(isLastMoveFrom || isLastMoveTo) && (
+                      <div className="absolute h-8 w-8 rounded bg-yellow-400/40" />
+                    )}
+                    
+                    {/* Valid move indicator */}
+                    {isValidTarget && !piece && (
+                      <div className="absolute h-4 w-4 rounded-full bg-green-500/70 shadow" />
+                    )}
+                    
+                    {/* Piece */}
+                    {piece && (
+                      <div
                         className={`
-                          relative flex items-center justify-center
-                          h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12
-                          transition-all
-                          ${isSelected ? "z-10" : ""}
-                          ${isLastMoveFrom || isLastMoveTo ? "bg-yellow-300/30" : ""}
+                          flex items-center justify-center rounded-full border-2
+                          h-8 w-8 text-sm font-bold
+                          shadow-lg transition-transform
+                          ${piece.color === "red" 
+                            ? "border-red-700 bg-gradient-to-br from-amber-50 to-amber-100 text-red-600" 
+                            : "border-slate-600 bg-gradient-to-br from-slate-50 to-slate-200 text-slate-800"
+                          }
+                          ${isSelected ? "scale-110 ring-2 ring-yellow-400" : ""}
+                          ${isValidTarget ? "ring-2 ring-green-400" : ""}
                         `}
                       >
-                        {/* Valid move indicator */}
-                        {isValidTarget && !piece && (
-                          <div className="absolute h-3 w-3 rounded-full bg-green-500/50 sm:h-4 sm:w-4" />
-                        )}
-                        
-                        {/* Piece */}
-                        {piece && (
-                          <div
-                            className={`
-                              flex items-center justify-center rounded-full border-2
-                              h-7 w-7 sm:h-9 sm:w-9 md:h-11 md:w-11
-                              text-sm font-bold sm:text-base md:text-lg
-                              shadow-md transition-transform
-                              ${piece.color === "red" 
-                                ? "border-red-800 bg-gradient-to-br from-red-100 to-red-200 text-red-600" 
-                                : "border-slate-700 bg-gradient-to-br from-slate-100 to-slate-200 text-slate-800"
-                              }
-                              ${isSelected ? "scale-110 ring-2 ring-yellow-400 ring-offset-1" : ""}
-                              ${isValidTarget ? "ring-2 ring-green-500" : ""}
-                            `}
-                          >
-                            {getPieceName(piece)}
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
+                        {getPieceName(piece)}
+                      </div>
+                    )}
+                  </button>
+                )
+              })
+            ))}
           </div>
         </div>
 
