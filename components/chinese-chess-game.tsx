@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
-import { RotateCcw, Home, Flag } from "lucide-react"
+import { RotateCcw, Home, Flag, Undo2, HelpCircle, X } from "lucide-react"
 import Link from "next/link"
 
 // Piece types
@@ -301,7 +301,10 @@ export function ChineseChessGame() {
   const [currentTurn, setCurrentTurn] = useState<PieceColor>("red")
   const [gameStatus, setGameStatus] = useState<"playing" | "check" | "checkmate" | "stalemate">("playing")
   const [winner, setWinner] = useState<PieceColor | null>(null)
-  const [moveHistory, setMoveHistory] = useState<{ from: Position; to: Position; piece: Piece }[]>([])
+  const [moveHistory, setMoveHistory] = useState<{ from: Position; to: Position; piece: Piece; capturedPiece: Piece | null }[]>([])
+  const [redUndoUsed, setRedUndoUsed] = useState(false)
+  const [blackUndoUsed, setBlackUndoUsed] = useState(false)
+  const [showRules, setShowRules] = useState(false)
 
   const resetGame = useCallback(() => {
     setBoard(createInitialBoard())
@@ -311,7 +314,42 @@ export function ChineseChessGame() {
     setGameStatus("playing")
     setWinner(null)
     setMoveHistory([])
+    setRedUndoUsed(false)
+    setBlackUndoUsed(false)
   }, [])
+
+  const handleUndo = useCallback(() => {
+    if (moveHistory.length === 0) return
+    if (gameStatus === "checkmate") return
+
+    // The player who wants to undo is the one whose turn it is NOT
+    // Because the last move was made by the opponent
+    const lastMove = moveHistory[moveHistory.length - 1]
+    const undoingPlayer = lastMove.piece.color
+
+    // Check if this player has already used their undo
+    if (undoingPlayer === "red" && redUndoUsed) return
+    if (undoingPlayer === "black" && blackUndoUsed) return
+
+    // Restore the board state
+    const newBoard = board.map(r => [...r])
+    newBoard[lastMove.from.row][lastMove.from.col] = lastMove.piece
+    newBoard[lastMove.to.row][lastMove.to.col] = lastMove.capturedPiece
+
+    setBoard(newBoard)
+    setMoveHistory(prev => prev.slice(0, -1))
+    setCurrentTurn(undoingPlayer)
+    setSelectedPos(null)
+    setValidMoves([])
+    setGameStatus("playing")
+
+    // Mark this player's undo as used
+    if (undoingPlayer === "red") {
+      setRedUndoUsed(true)
+    } else {
+      setBlackUndoUsed(true)
+    }
+  }, [moveHistory, board, gameStatus, redUndoUsed, blackUndoUsed])
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (gameStatus === "checkmate" || gameStatus === "stalemate") return
@@ -342,9 +380,10 @@ export function ChineseChessGame() {
           return
         }
 
-        // Valid move
+        // Valid move - record captured piece for undo
+        const capturedPiece = board[row][col]
         setBoard(newBoard)
-        setMoveHistory(prev => [...prev, { from: selectedPos, to: { row, col }, piece: movingPiece }])
+        setMoveHistory(prev => [...prev, { from: selectedPos, to: { row, col }, piece: movingPiece, capturedPiece }])
         
         const nextTurn = currentTurn === "red" ? "black" : "red"
         setCurrentTurn(nextTurn)
@@ -399,22 +438,53 @@ export function ChineseChessGame() {
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4">
         {/* Game Status */}
-        <Card className="border-amber-600 bg-amber-800/50 p-3 text-center sm:p-4">
-          <div className="flex items-center justify-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className={`h-4 w-4 rounded-full ${currentTurn === "red" ? "bg-red-500" : "bg-slate-800"}`} />
-              <span className="text-sm font-medium text-amber-100 sm:text-base">
-                {currentTurn === "red" ? t("redTurn") : t("blackTurn")}
-              </span>
+        <Card className="border-amber-600 bg-amber-800/50 p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            {/* Turn indicator and status */}
+            <div className="flex items-center justify-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-4 rounded-full ${currentTurn === "red" ? "bg-red-500 ring-2 ring-red-300" : "bg-slate-700"}`} />
+                <span className={`text-sm font-medium sm:text-base ${currentTurn === "red" ? "text-red-300" : "text-amber-100/50"}`}>
+                  {t("redTurn")}
+                </span>
+              </div>
+              <div className="h-4 w-px bg-amber-600" />
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-4 rounded-full ${currentTurn === "black" ? "bg-slate-800 ring-2 ring-slate-400" : "bg-slate-600"}`} />
+                <span className={`text-sm font-medium sm:text-base ${currentTurn === "black" ? "text-slate-300" : "text-amber-100/50"}`}>
+                  {t("blackTurn")}
+                </span>
+              </div>
             </div>
+
+            {/* Check/Checkmate status */}
             {gameStatus === "check" && (
-              <span className="animate-pulse text-sm font-bold text-yellow-400 sm:text-base">{t("check")}</span>
+              <div className="flex justify-center">
+                <span className="animate-pulse rounded-full bg-yellow-500/20 px-3 py-1 text-sm font-bold text-yellow-400">{t("check")}</span>
+              </div>
             )}
             {gameStatus === "checkmate" && (
-              <span className="text-sm font-bold text-red-400 sm:text-base">
-                {winner === "red" ? t("redWins") : t("blackWins")}
-              </span>
+              <div className="flex justify-center">
+                <span className="rounded-full bg-red-500/20 px-3 py-1 text-sm font-bold text-red-400">
+                  {winner === "red" ? t("redWins") : t("blackWins")}
+                </span>
+              </div>
             )}
+
+            {/* Undo status */}
+            <div className="flex items-center justify-center gap-4 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="text-red-400">
+                  {redUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
+                </span>
+              </div>
+              <div className="h-3 w-px bg-amber-600/50" />
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400">
+                  {blackUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
+                </span>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -567,21 +637,43 @@ export function ChineseChessGame() {
         </div>
 
         {/* Controls */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button
+            onClick={handleUndo}
+            variant="outline"
+            disabled={
+              moveHistory.length === 0 ||
+              gameStatus === "checkmate" ||
+              (moveHistory.length > 0 && moveHistory[moveHistory.length - 1].piece.color === "red" && redUndoUsed) ||
+              (moveHistory.length > 0 && moveHistory[moveHistory.length - 1].piece.color === "black" && blackUndoUsed)
+            }
+            className="border-amber-600 bg-amber-800/50 text-amber-100 hover:bg-amber-700 disabled:opacity-50"
+          >
+            <Undo2 className="mr-1 h-4 w-4 sm:mr-2" />
+            {t("undo")}
+          </Button>
           <Button
             onClick={resetGame}
             variant="outline"
             className="border-amber-600 bg-amber-800/50 text-amber-100 hover:bg-amber-700"
           >
-            <RotateCcw className="mr-2 h-4 w-4" />
+            <RotateCcw className="mr-1 h-4 w-4 sm:mr-2" />
             {t("restart")}
+          </Button>
+          <Button
+            onClick={() => setShowRules(true)}
+            variant="outline"
+            className="border-amber-600 bg-amber-800/50 text-amber-100 hover:bg-amber-700"
+          >
+            <HelpCircle className="mr-1 h-4 w-4 sm:mr-2" />
+            {t("howToPlay")}
           </Button>
           {gameStatus === "checkmate" && (
             <Button
               onClick={resetGame}
               className="bg-amber-600 text-white hover:bg-amber-500"
             >
-              <Flag className="mr-2 h-4 w-4" />
+              <Flag className="mr-1 h-4 w-4 sm:mr-2" />
               {t("newGame")}
             </Button>
           )}
@@ -591,6 +683,68 @@ export function ChineseChessGame() {
         <p className="max-w-md text-center text-xs text-amber-200/70 sm:text-sm">
           {t("chessInstructions")}
         </p>
+
+        {/* Rules Modal */}
+        {showRules && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowRules(false)}>
+            <Card 
+              className="max-h-[80vh] w-full max-w-md overflow-y-auto border-amber-600 bg-amber-900/95 p-4 sm:p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-amber-100 sm:text-xl">{t("howToPlay")}</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowRules(false)}
+                  className="text-amber-100 hover:bg-amber-800"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <h3 className="mb-2 font-semibold text-amber-200">{t("pieceRules")}</h3>
+                  <ul className="space-y-2 text-sm text-amber-100/90">
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">帅</span>
+                      <span>{t("kingRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">仕</span>
+                      <span>{t("advisorRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">相</span>
+                      <span>{t("elephantRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">馬</span>
+                      <span>{t("horseRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">車</span>
+                      <span>{t("chariotRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">炮</span>
+                      <span>{t("cannonRule")}</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-red-600 bg-amber-50 text-xs font-bold text-red-600">兵</span>
+                      <span>{t("pawnRule")}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="border-t border-amber-700 pt-4">
+                  <h3 className="mb-2 font-semibold text-amber-200">{t("winCondition")}</h3>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )
