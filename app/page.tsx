@@ -140,6 +140,42 @@ export default function Home() {
               </CardContent>
             </Card>
           </Link>
+
+          <Link href="/go" className="block">
+            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
+              <CardHeader>
+                <CardTitle className="text-amber-500">
+                  {t("go")}
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  {t("go")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-400">
+                  {t("goDescription")}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/chess" className="block">
+            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
+              <CardHeader>
+                <CardTitle className="text-slate-300">
+                  {t("chess")}
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  {t("chess")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-400">
+                  {t("chessDescription")}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </main>
     </div>
