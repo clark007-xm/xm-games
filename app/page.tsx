@@ -5,16 +5,99 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useLocale } from "@/lib/locale-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
 
+type GameItem = {
+  href: string
+  titleKey: string
+  descKey: string
+  color: string
+  customTitle?: React.ReactNode
+}
+
+type Category = {
+  titleKey: string
+  games: GameItem[]
+}
+
 export default function Home() {
   const { t } = useLocale()
+
+  const categories: Category[] = [
+    {
+      titleKey: "categoryBoard",
+      games: [
+        { href: "/chinese-chess", titleKey: "chineseChess", descKey: "chineseChessDescription", color: "text-amber-400" },
+        { href: "/chess", titleKey: "chess", descKey: "chessDescription", color: "text-slate-300" },
+        { href: "/go", titleKey: "go", descKey: "goDescription", color: "text-amber-500" },
+        { href: "/gomoku", titleKey: "gomoku", descKey: "gomokuDescription", color: "text-yellow-400" },
+        { href: "/reversi", titleKey: "reversi", descKey: "reversiDescription", color: "text-green-400" },
+      ],
+    },
+    {
+      titleKey: "categoryPuzzle",
+      games: [
+        { href: "/minesweeper", titleKey: "minesweeper", descKey: "minesweeperDescription", color: "text-slate-400" },
+        { href: "/2048", titleKey: "game2048", descKey: "game2048Description", color: "text-orange-400" },
+        { href: "/sudoku", titleKey: "sudoku", descKey: "sudokuDescription", color: "text-blue-400" },
+      ],
+    },
+    {
+      titleKey: "categoryArcade",
+      games: [
+        { href: "/tetris", titleKey: "tetris", descKey: "tetrisDescription", color: "text-cyan-400" },
+        { href: "/snake", titleKey: "snake", descKey: "snakeDescription", color: "text-green-400" },
+      ],
+    },
+    {
+      titleKey: "categoryBingo",
+      games: [
+        { 
+          href: "/bingo", 
+          titleKey: "bingo", 
+          descKey: "bingoDescription", 
+          color: "text-white",
+          customTitle: (
+            <>
+              <span className="text-red-500">B</span>
+              <span className="text-orange-500">I</span>
+              <span className="text-yellow-500">N</span>
+              <span className="text-green-500">G</span>
+              <span className="text-blue-500">O</span>
+            </>
+          )
+        },
+        { 
+          href: "/bingo-cards", 
+          titleKey: "bingoCardsGame", 
+          descKey: "bingoCardsDescription", 
+          color: "text-white",
+          customTitle: (
+            <>
+              <span className="text-red-500">B</span>
+              <span className="text-orange-500">I</span>
+              <span className="text-yellow-500">N</span>
+              <span className="text-green-500">G</span>
+              <span className="text-blue-500">O</span>
+              <span className="ml-2 text-slate-300">{/* Cards handled below */}</span>
+            </>
+          )
+        },
+      ],
+    },
+    {
+      titleKey: "categoryTools",
+      games: [
+        { href: "/anime-tracker", titleKey: "animeTracker", descKey: "animeTrackerDescription", color: "text-pink-400" },
+      ],
+    },
+  ]
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 font-sans">
       <div className="flex justify-end">
         <LanguageSwitcher />
       </div>
-      <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 py-8 text-center">
-        <div className="flex flex-col gap-4">
+      <main className="flex flex-1 flex-col items-center gap-8 px-6 py-8">
+        <div className="flex flex-col gap-4 text-center">
           <h1 className="text-5xl font-bold tracking-tight text-white">
             {t("appName")}
           </h1>
@@ -23,159 +106,45 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid w-full max-w-3xl gap-4 md:grid-cols-2">
-          <Link href="/bingo" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white">
-                  <span className="text-red-500">B</span>
-                  <span className="text-orange-500">I</span>
-                  <span className="text-yellow-500">N</span>
-                  <span className="text-green-500">G</span>
-                  <span className="text-blue-500">O</span>
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("bingoGame")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("bingoDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/bingo-cards" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-white">
-                  <span className="text-red-500">B</span>
-                  <span className="text-orange-500">I</span>
-                  <span className="text-yellow-500">N</span>
-                  <span className="text-green-500">G</span>
-                  <span className="text-blue-500">O</span>
-                  <span className="ml-2 text-slate-300">{t("bingoCards")}</span>
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("bingoCardsGame")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("bingoCardsDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/tetris" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-cyan-400">
-                  {t("tetris")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("tetris")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("tetrisDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/snake" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-green-400">
-                  {t("snake")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("snake")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("snakeDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/anime-tracker" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-pink-400">
-                  {t("animeTracker")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("animeTrackerShort")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("animeTrackerDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/chinese-chess" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-amber-400">
-                  {t("chineseChess")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("chineseChess")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("chineseChessDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/go" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-amber-500">
-                  {t("go")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("go")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("goDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/chess" className="block">
-            <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800">
-              <CardHeader>
-                <CardTitle className="text-slate-300">
-                  {t("chess")}
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  {t("chess")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-400">
-                  {t("chessDescription")}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+        <div className="w-full max-w-5xl space-y-8">
+          {categories.map((category) => (
+            <section key={category.titleKey}>
+              <h2 className="mb-4 text-xl font-semibold text-slate-300">
+                {t(category.titleKey as keyof ReturnType<typeof t>)}
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {category.games.map((game) => (
+                  <Link key={game.href} href={game.href} className="block">
+                    <Card className="h-full border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500 hover:bg-slate-800 hover:scale-[1.02]">
+                      <CardHeader className="pb-2">
+                        <CardTitle className={game.color}>
+                          {game.customTitle ? (
+                            game.href === "/bingo-cards" ? (
+                              <>
+                                <span className="text-red-500">B</span>
+                                <span className="text-orange-500">I</span>
+                                <span className="text-yellow-500">N</span>
+                                <span className="text-green-500">G</span>
+                                <span className="text-blue-500">O</span>
+                                <span className="ml-2 text-slate-300">{t("bingoCards")}</span>
+                              </>
+                            ) : game.customTitle
+                          ) : (
+                            t(game.titleKey as keyof ReturnType<typeof t>)
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-slate-400">
+                          {t(game.descKey as keyof ReturnType<typeof t>)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </main>
     </div>

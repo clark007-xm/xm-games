@@ -170,6 +170,61 @@ export const translations = {
     knightRule: "马：L形移动（2+1格）",
     pawnRuleInt: "兵：向前一格，首次可两格，斜吃子",
     chessSpecialRules: "特殊规则：王车易位、吃过路兵、兵底线升变为后",
+
+    // Game Categories
+    categoryBingo: "Bingo 游戏",
+    categoryBoard: "棋类对弈",
+    categoryPuzzle: "益智解谜",
+    categoryArcade: "休闲街机",
+    categoryTools: "实用工具",
+
+    // Minesweeper
+    minesweeper: "扫雷",
+    minesweeperDescription: "经典扫雷游戏，避开地雷清除所有安全格子",
+    easy: "简单",
+    medium: "中等",
+    hard: "困难",
+    youWin: "你赢了！",
+    minesweeperInstructions: "左键揭开格子，右键标记地雷。数字表示周围地雷数量。",
+    minesweeperRule1: "点击格子揭开，数字表示周围8格内的地雷数量",
+    minesweeperRule2: "右键点击标记你认为是地雷的格子",
+    minesweeperRule3: "揭开所有非地雷格子即可获胜",
+    minesweeperRule4: "第一次点击不会踩到地雷",
+
+    // 2048
+    game2048: "2048",
+    game2048Description: "滑动数字方块，合并相同数字，目标是获得2048",
+    game2048Instructions: "使用方向键或滑动移动方块，相同数字会合并",
+    game2048Rule1: "使用方向键移动所有方块",
+    game2048Rule2: "相同数字的方块碰撞时会合并",
+    game2048Rule3: "每次移动后会随机出现一个新方块",
+
+    // Sudoku
+    sudoku: "数独",
+    sudokuDescription: "经典数独解谜游戏，填满9x9方格",
+    hint: "提示",
+    sudokuInstructions: "点击格子选中，然后点击数字填入。每行、每列、每个3x3方格内数字1-9不能重复。",
+    sudokuRule1: "每行、每列、每个3x3方格必须包含1-9各一次",
+    sudokuRule2: "黑色数字是初始数字，不能修改",
+    sudokuRule3: "蓝色数字是你填入的，红色表示错误",
+
+    // Gomoku
+    gomoku: "五子棋",
+    gomokuDescription: "先在棋盘上连成五子的一方获胜",
+    gomokuInstructions: "黑棋先行，双方轮流落子，先连成五子者获胜。",
+    gomokuRule1: "黑棋先行，双方轮流在交叉点落子",
+    gomokuRule2: "先在横、竖或斜方向连成五子的一方获胜",
+    gomokuRule3: "每方有一次悔棋机会",
+
+    // Reversi
+    reversi: "黑白棋",
+    reversiDescription: "翻转对手的棋子，最终棋子多的一方获胜",
+    tie: "平局",
+    reversiInstructions: "落子翻转对手棋子，最终棋子多者获胜。",
+    reversiRule1: "黑棋先行，落子必须能翻转至少一个对方棋子",
+    reversiRule2: "被夹在中间的对方棋子会被翻转成己方颜色",
+    reversiRule3: "无子可下时自动跳过，双方都无法下子时游戏结束",
+    reversiRule4: "游戏结束时棋子多的一方获胜",
   },
   en: {
     // Common
@@ -332,6 +387,61 @@ export const translations = {
     knightRule: "Knight: Moves in L-shape (2+1 squares)",
     pawnRuleInt: "Pawn: Moves forward one square, two on first move, captures diagonally",
     chessSpecialRules: "Special: Castling, en passant, pawn promotion to queen",
+
+    // Game Categories
+    categoryBingo: "Bingo Games",
+    categoryBoard: "Board Games",
+    categoryPuzzle: "Puzzle Games",
+    categoryArcade: "Arcade Games",
+    categoryTools: "Tools",
+
+    // Minesweeper
+    minesweeper: "Minesweeper",
+    minesweeperDescription: "Classic Minesweeper - avoid mines and clear the board",
+    easy: "Easy",
+    medium: "Medium",
+    hard: "Hard",
+    youWin: "You Win!",
+    minesweeperInstructions: "Left click to reveal, right click to flag. Numbers show adjacent mines.",
+    minesweeperRule1: "Click to reveal cells. Numbers indicate adjacent mines.",
+    minesweeperRule2: "Right-click to flag cells you think are mines.",
+    minesweeperRule3: "Clear all non-mine cells to win.",
+    minesweeperRule4: "First click never hits a mine.",
+
+    // 2048
+    game2048: "2048",
+    game2048Description: "Slide tiles, merge same numbers, reach 2048 to win",
+    game2048Instructions: "Use arrow keys or swipe to move tiles. Same numbers merge.",
+    game2048Rule1: "Use arrow keys to slide all tiles.",
+    game2048Rule2: "Tiles with the same number merge when they collide.",
+    game2048Rule3: "A new tile appears after each move.",
+
+    // Sudoku
+    sudoku: "Sudoku",
+    sudokuDescription: "Classic Sudoku puzzle - fill the 9x9 grid",
+    hint: "Hint",
+    sudokuInstructions: "Click a cell, then click a number. Each row, column, and 3x3 box must contain 1-9.",
+    sudokuRule1: "Each row, column, and 3x3 box must contain 1-9 exactly once.",
+    sudokuRule2: "Black numbers are given clues and cannot be changed.",
+    sudokuRule3: "Blue numbers are your input. Red indicates errors.",
+
+    // Gomoku
+    gomoku: "Gomoku",
+    gomokuDescription: "Five in a row wins the game",
+    gomokuInstructions: "Black plays first. Take turns placing stones. First to connect 5 wins.",
+    gomokuRule1: "Black plays first. Players alternate placing stones.",
+    gomokuRule2: "First to get 5 in a row (horizontal, vertical, or diagonal) wins.",
+    gomokuRule3: "Each player has one undo chance.",
+
+    // Reversi
+    reversi: "Reversi",
+    reversiDescription: "Flip opponent's pieces to have the most at the end",
+    tie: "Tie",
+    reversiInstructions: "Place pieces to flip opponent's. Most pieces at the end wins.",
+    reversiRule1: "Black plays first. Must flip at least one opponent piece.",
+    reversiRule2: "Pieces between your new and existing pieces are flipped.",
+    reversiRule3: "Pass if no valid moves. Game ends when both players can't move.",
+    reversiRule4: "Player with most pieces when game ends wins.",
   },
   th: {
     // Common
@@ -388,7 +498,7 @@ export const translations = {
     stopListening: "หยุดรับเสียง",
     resetMarks: "ล้างเครื่องหมาย",
     markedCount: "ทำเครื่องหมายแล้ว",
-    markedNumbers: "ตัวเลขที่ทำเครื่องหมาย",
+    markedNumbers: "ตัวเลขที่ทำเครื่องหมา���",
 
     // Tetris
     tetris: "เทตริส",
@@ -494,6 +604,61 @@ export const translations = {
     knightRule: "ไนท์: เดินรูปตัว L (2+1 ช่อง)",
     pawnRuleInt: "เบี้ย: เดินหน้า 1 ช่อง (ครั้งแรก 2 ช่อง) กินแนวทแยง",
     chessSpecialRules: "พิเศษ: คิงไซด์/ควีนไซด์แคสลิ่ง, กินผ่าน, เบี้ยเลื่อนขั้นเป็นควีน",
+
+    // Game Categories
+    categoryBingo: "เกมบิงโก",
+    categoryBoard: "เกมกระดาน",
+    categoryPuzzle: "เกมปริศนา",
+    categoryArcade: "เกมอาร์เคด",
+    categoryTools: "เครื่องมือ",
+
+    // Minesweeper
+    minesweeper: "กู้ระเบิด",
+    minesweeperDescription: "เกมกู้ระเบิดคลาสสิก หลีกเลี่ยงระเบิดและเปิดช่องทั้งหมด",
+    easy: "ง่าย",
+    medium: "ปานกลาง",
+    hard: "ยาก",
+    youWin: "คุณชนะ!",
+    minesweeperInstructions: "คลิกซ้ายเพื่อเปิด คลิกขวาเพื่อปักธง ตัวเลขแสดงจำนวนระเบิดรอบข้าง",
+    minesweeperRule1: "คลิกเพื่อเปิดช่อง ตัวเลขบอกจำนวนระเบิดรอบข้าง",
+    minesweeperRule2: "คลิกขวาเพื่อปักธงช่องที่คิดว่าเป็นระเบิด",
+    minesweeperRule3: "เปิดช่องที่ไม่ใช่ระเบิดทั้งหมดเพื่อชนะ",
+    minesweeperRule4: "คลิกแรกไม่มีทางโดนระเบิด",
+
+    // 2048
+    game2048: "2048",
+    game2048Description: "เลื่อนแผ่นตัวเลข รวมตัวเลขเดียวกัน เป้าหมายคือ 2048",
+    game2048Instructions: "ใช้ปุ่มลูกศรหรือสไลด์เพื่อเลื่อน ตัวเลขเดียวกันจะรวมกัน",
+    game2048Rule1: "ใช้ปุ่มลูกศรเลื่อนแผ่นทั้งหมด",
+    game2048Rule2: "แผ่นตัวเลขเดียวกันจะรวมกันเมื่อชนกัน",
+    game2048Rule3: "แผ่นใหม่จะปรากฏหลังการเลื่อนแต่ละครั้ง",
+
+    // Sudoku
+    sudoku: "ซูโดกุ",
+    sudokuDescription: "เกมปริศนาซูโดกุคลาสสิก เติมตาราง 9x9",
+    hint: "คำใบ้",
+    sudokuInstructions: "คลิกช่อง แล้วคลิกตัวเลข แต่ละแถว คอลัมน์ และช่อง 3x3 ต้องมี 1-9",
+    sudokuRule1: "แต่ละแถว คอลัมน์ และช่อง 3x3 ต้องมีตัวเลข 1-9 อย่างละครั้ง",
+    sudokuRule2: "ตัวเลขสีดำคือตัวเลขที่ให้มา เปลี่ยนไม่ได้",
+    sudokuRule3: "ตัวเลขสีน้ำเงินคือที่คุณใส่ สีแดงแสดงข้อผิดพลาด",
+
+    // Gomoku
+    gomoku: "โกะโมกุ",
+    gomokuDescription: "เรียง 5 ตัวก่อนชนะ",
+    gomokuInstructions: "ดำเดินก่อน ผลัดกันวางหมาก เรียง 5 ตัวก่อนชนะ",
+    gomokuRule1: "ดำเดินก่อน ผลัดกันวางหมากบนจุดตัด",
+    gomokuRule2: "เรียง 5 ตัวในแนวตั้ง แนวนอน หรือแนวทแยงก่อนชนะ",
+    gomokuRule3: "แต่ละฝ่ายมีโอกาสถอยหมากหนึ่งครั้ง",
+
+    // Reversi
+    reversi: "โอเทลโล",
+    reversiDescription: "พลิกหมากฝ่ายตรงข้าม มีหมากมากที่สุดเมื่อจบเกมชนะ",
+    tie: "เสมอ",
+    reversiInstructions: "วางหมากเพื่อพลิกหมากฝ่ายตรงข้าม หมากมากที่สุดตอนจบชนะ",
+    reversiRule1: "ดำเดินก่อน ต้องพลิกหมากฝ่ายตรงข้ามอย่างน้อยหนึ่งตัว",
+    reversiRule2: "หมากที่อยู่ระหว่างหมากใหม่และหมากเดิมจะถูกพลิก",
+    reversiRule3: "ผ่านถ้าไม่มีที่วาง เกมจบเมื่อทั้งสองฝ่ายไม่มีที่วาง",
+    reversiRule4: "ผู้เล่นที่มีหมากมากที่สุดเมื่อจบเกมชนะ",
   },
 } as const
 
