@@ -47,7 +47,7 @@ const pieceNames: Record<PieceColor, Record<PieceType, Record<string, string>>> 
 // Initial board setup
 function createInitialBoard(): (Piece | null)[][] {
   const board: (Piece | null)[][] = Array(10).fill(null).map(() => Array(9).fill(null))
-  
+
   // Black pieces (top)
   board[0][0] = { type: "chariot", color: "black" }
   board[0][1] = { type: "horse", color: "black" }
@@ -131,10 +131,10 @@ function isValidMove(
   piece: Piece
 ): boolean {
   const targetPiece = board[to.row][to.col]
-  
+
   // Cannot capture own piece
   if (targetPiece && targetPiece.color === piece.color) return false
-  
+
   const rowDiff = to.row - from.row
   const colDiff = to.col - from.col
   const absRowDiff = Math.abs(rowDiff)
@@ -336,7 +336,7 @@ export function ChineseChessGame() {
     newBoard[lastMove.to.row][lastMove.to.col] = lastMove.capturedPiece
 
     setBoard(newBoard)
-    setMoveHistory(prev => prev.slice(0, -1))
+    setMoveHistory(moveHistory.slice(0, -1))
     setCurrentTurn(undoingPlayer)
     setSelectedPos(null)
     setValidMoves([])
@@ -382,8 +382,8 @@ export function ChineseChessGame() {
         // Valid move - record captured piece for undo
         const capturedPiece = board[row][col]
         setBoard(newBoard)
-        setMoveHistory(prev => [...prev, { from: selectedPos, to: { row, col }, piece: movingPiece, capturedPiece }])
-        
+        setMoveHistory([...moveHistory, { from: selectedPos, to: { row, col }, piece: movingPiece, capturedPiece }])
+
         const nextTurn = currentTurn === "red" ? "black" : "red"
         setCurrentTurn(nextTurn)
         setSelectedPos(null)
@@ -411,7 +411,7 @@ export function ChineseChessGame() {
         setValidMoves(getValidMoves(board, { row, col }))
       }
     }
-  }, [board, selectedPos, currentTurn, gameStatus])
+  }, [board, selectedPos, currentTurn, gameStatus, moveHistory])
 
   const isValidMoveTarget = (row: number, col: number) => {
     return validMoves.some(m => m.row === row && m.col === col)
@@ -439,7 +439,7 @@ export function ChineseChessGame() {
         <Card className="border-amber-600 bg-amber-800/50 p-3 sm:p-4" role="status" aria-live="polite">
           <div className="flex flex-col gap-3">
             {/* Turn indicator and status */}
-            <div className="flex items-center justify-center gap-4">
+            {gameStatus !== "checkmate" && <div className="flex items-center justify-center gap-4">
               <div className="flex items-center gap-2">
                 <div className={`h-4 w-4 rounded-full ${currentTurn === "red" ? "bg-red-500 ring-2 ring-red-300" : "bg-slate-700"}`} />
                 <span className={`text-sm font-medium sm:text-base ${currentTurn === "red" ? "text-red-300" : "text-amber-100/50"}`}>
@@ -453,7 +453,7 @@ export function ChineseChessGame() {
                   {t("blackTurn")}
                 </span>
               </div>
-            </div>
+            </div>}
 
             {/* Check/Checkmate status */}
             {gameStatus === "check" && (
@@ -463,14 +463,14 @@ export function ChineseChessGame() {
             )}
             {gameStatus === "checkmate" && (
               <div className="flex justify-center">
-                <span className="rounded-full bg-red-500/20 px-3 py-1 text-sm font-bold text-red-400">
+                <span className="rounded-lg bg-amber-950 px-3 py-1 text-lg font-bold text-amber-100">
                   {winner === "red" ? t("redWins") : t("blackWins")}
                 </span>
               </div>
             )}
 
             {/* Undo status */}
-            <div className="flex items-center justify-center gap-4 text-xs">
+            {gameStatus !== "checkmate" && <div className="flex items-center justify-center gap-4 text-xs">
               <div className="flex items-center gap-1">
                 <span className="text-red-400">
                   {redUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
@@ -482,166 +482,170 @@ export function ChineseChessGame() {
                   {blackUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
                 </span>
               </div>
-            </div>
+            </div>}
           </div>
         </Card>
 
         {/* Chess Board */}
-        <div 
-          className="relative rounded-lg border-4 border-amber-700 bg-[#d4a574]"
-          style={{
-            // 8 gaps between 9 columns, 9 gaps between 10 rows
-            // Cell size: 36px on mobile, scales up
-            width: "calc(36px * 8 + 32px)", // 8 gaps + padding
-            height: "calc(36px * 9 + 32px)", // 9 gaps + padding
-            padding: "16px",
-          }}
-        >
-          {/* SVG Board Lines - positioned to match intersections */}
-          <svg 
-            className="absolute"
-            aria-hidden="true"
-            focusable="false"
-            style={{
-              left: "16px",
-              top: "16px",
-              width: "calc(36px * 8)",
-              height: "calc(36px * 9)",
-            }}
-            viewBox="0 0 288 324"
-            preserveAspectRatio="none"
-          >
-            {/* Horizontal lines - 10 lines for 10 rows */}
-            {Array.from({ length: 10 }).map((_, i) => (
-              <line
-                key={`h-${i}`}
-                x1={0}
-                y1={i * 36}
-                x2={288}
-                y2={i * 36}
-                stroke="#8b6914"
-                strokeWidth="1.5"
-              />
-            ))}
-            
-            {/* Vertical lines - top half (rows 0-4) */}
-            {Array.from({ length: 9 }).map((_, i) => (
-              <line
-                key={`vt-${i}`}
-                x1={i * 36}
-                y1={0}
-                x2={i * 36}
-                y2={144}
-                stroke="#8b6914"
-                strokeWidth="1.5"
-              />
-            ))}
-            
-            {/* Vertical lines - bottom half (rows 5-9) */}
-            {Array.from({ length: 9 }).map((_, i) => (
-              <line
-                key={`vb-${i}`}
-                x1={i * 36}
-                y1={180}
-                x2={i * 36}
-                y2={324}
-                stroke="#8b6914"
-                strokeWidth="1.5"
-              />
-            ))}
-            
-            {/* Border lines through river (left and right edges only) */}
-            <line x1={0} y1={144} x2={0} y2={180} stroke="#8b6914" strokeWidth="1.5" />
-            <line x1={288} y1={144} x2={288} y2={180} stroke="#8b6914" strokeWidth="1.5" />
-            
-            {/* Palace diagonals - top (columns 3-5, rows 0-2) */}
-            <line x1={108} y1={0} x2={180} y2={72} stroke="#8b6914" strokeWidth="1.5" />
-            <line x1={180} y1={0} x2={108} y2={72} stroke="#8b6914" strokeWidth="1.5" />
-            
-            {/* Palace diagonals - bottom (columns 3-5, rows 7-9) */}
-            <line x1={108} y1={252} x2={180} y2={324} stroke="#8b6914" strokeWidth="1.5" />
-            <line x1={180} y1={252} x2={108} y2={324} stroke="#8b6914" strokeWidth="1.5" />
-          </svg>
-
-          {/* River text */}
-          <div 
-            className="pointer-events-none absolute flex items-center justify-center"
-            style={{ 
-              left: "16px",
-              right: "16px",
-              top: "calc(16px + 36px * 4)",
-              height: "36px",
-            }}
-          >
-            <span className="text-sm font-bold tracking-[0.3em] text-amber-800/50 sm:text-base sm:tracking-[0.5em]">
-              {locale === "zh" ? "楚河      汉界" : locale === "th" ? "แม่น้ำ" : "RIVER"}
-            </span>
-          </div>
-
-          {/* Pieces layer - absolute positioned on intersections */}
+        <div className="max-w-full overflow-x-auto p-1">
           <div
-            className="relative"
-            role="group"
-            aria-label={t("chineseChess")}
-            style={{ width: "calc(36px * 8)", height: "calc(36px * 9)" }}
+            className="relative rounded-lg border-4 border-amber-700 bg-[#d4a574]"
+            style={{
+              // 8 gaps between 9 columns, 9 gaps between 10 rows
+              // Include padding and the border; narrow screens scroll this board.
+              width: "calc(36px * 8 + 40px)",
+              height: "calc(36px * 9 + 40px)",
+              padding: "16px",
+            }}
           >
-            {board.map((row, rowIndex) => (
-              row.map((piece, colIndex) => {
-                const isSelected = selectedPos?.row === rowIndex && selectedPos?.col === colIndex
-                const isValidTarget = isValidMoveTarget(rowIndex, colIndex)
-                const lastMove = moveHistory[moveHistory.length - 1]
-                const isLastMoveFrom = lastMove?.from.row === rowIndex && lastMove?.from.col === colIndex
-                const isLastMoveTo = lastMove?.to.row === rowIndex && lastMove?.to.col === colIndex
+            {/* SVG Board Lines - positioned to match intersections */}
+            <svg
+              className="absolute"
+              aria-hidden="true"
+              focusable="false"
+              style={{
+                left: "16px",
+                top: "16px",
+                width: "calc(36px * 8)",
+                height: "calc(36px * 9)",
+              }}
+              viewBox="0 0 288 324"
+              preserveAspectRatio="none"
+            >
+              {/* Horizontal lines - 10 lines for 10 rows */}
+              {Array.from({ length: 10 }).map((_, i) => (
+                <line
+                  key={`h-${i}`}
+                  x1={0}
+                  y1={i * 36}
+                  x2={288}
+                  y2={i * 36}
+                  stroke="#8b6914"
+                  strokeWidth="1.5"
+                />
+              ))}
 
-                return (
-                  <button
-                    key={`${rowIndex}-${colIndex}`}
-                    onClick={() => handleCellClick(rowIndex, colIndex)}
-                    aria-label={`${rowIndex + 1}, ${colIndex + 1}, ${piece ? `${piece.color === "red" ? t("redTurn") : t("blackTurn")} ${getPieceName(piece)}` : "empty"}${isValidTarget ? ", valid move" : ""}`}
-                    aria-pressed={isSelected}
-                    className="absolute flex items-center justify-center transition-all"
-                    style={{
-                      left: `${colIndex * 36 - 18}px`,
-                      top: `${rowIndex * 36 - 18}px`,
-                      width: "36px",
-                      height: "36px",
-                      zIndex: isSelected ? 10 : 1,
-                    }}
-                  >
-                    {/* Last move highlight */}
-                    {(isLastMoveFrom || isLastMoveTo) && (
-                      <div className="absolute h-8 w-8 rounded bg-yellow-400/40" aria-hidden="true" />
-                    )}
-                    
-                    {/* Valid move indicator */}
-                    {isValidTarget && !piece && (
-                      <div className="absolute h-4 w-4 rounded-full bg-green-500/70 shadow" aria-hidden="true" />
-                    )}
-                    
-                    {/* Piece */}
-                    {piece && (
-                      <div
-                        aria-hidden="true"
-                        className={`
-                          flex items-center justify-center rounded-full border-2
-                          h-8 w-8 text-sm font-bold
-                          shadow-lg transition-transform
-                          ${piece.color === "red" 
-                            ? "border-red-700 bg-gradient-to-br from-amber-50 to-amber-100 text-red-600" 
-                            : "border-slate-600 bg-gradient-to-br from-slate-50 to-slate-200 text-slate-800"
-                          }
-                          ${isSelected ? "scale-110 ring-2 ring-yellow-400" : ""}
-                          ${isValidTarget ? "ring-2 ring-green-400" : ""}
-                        `}
-                      >
-                        {getPieceName(piece)}
-                      </div>
-                    )}
-                  </button>
-                )
-              })
-            ))}
+              {/* Vertical lines - top half (rows 0-4) */}
+              {Array.from({ length: 9 }).map((_, i) => (
+                <line
+                  key={`vt-${i}`}
+                  x1={i * 36}
+                  y1={0}
+                  x2={i * 36}
+                  y2={144}
+                  stroke="#8b6914"
+                  strokeWidth="1.5"
+                />
+              ))}
+
+              {/* Vertical lines - bottom half (rows 5-9) */}
+              {Array.from({ length: 9 }).map((_, i) => (
+                <line
+                  key={`vb-${i}`}
+                  x1={i * 36}
+                  y1={180}
+                  x2={i * 36}
+                  y2={324}
+                  stroke="#8b6914"
+                  strokeWidth="1.5"
+                />
+              ))}
+
+              {/* Border lines through river (left and right edges only) */}
+              <line x1={0} y1={144} x2={0} y2={180} stroke="#8b6914" strokeWidth="1.5" />
+              <line x1={288} y1={144} x2={288} y2={180} stroke="#8b6914" strokeWidth="1.5" />
+
+              {/* Palace diagonals - top (columns 3-5, rows 0-2) */}
+              <line x1={108} y1={0} x2={180} y2={72} stroke="#8b6914" strokeWidth="1.5" />
+              <line x1={180} y1={0} x2={108} y2={72} stroke="#8b6914" strokeWidth="1.5" />
+
+              {/* Palace diagonals - bottom (columns 3-5, rows 7-9) */}
+              <line x1={108} y1={252} x2={180} y2={324} stroke="#8b6914" strokeWidth="1.5" />
+              <line x1={180} y1={252} x2={108} y2={324} stroke="#8b6914" strokeWidth="1.5" />
+            </svg>
+
+            {/* River text */}
+            <div
+              className="pointer-events-none absolute flex items-center justify-center"
+              style={{
+                left: "16px",
+                right: "16px",
+                top: "calc(16px + 36px * 4)",
+                height: "36px",
+              }}
+            >
+              <span className="text-sm font-bold tracking-[0.3em] text-amber-800/50 sm:text-base sm:tracking-[0.5em]">
+                {locale === "zh" ? "楚河      汉界" : locale === "th" ? "แม่น้ำ" : "RIVER"}
+              </span>
+            </div>
+
+            {/* Pieces layer - absolute positioned on intersections */}
+            <div
+              className="relative"
+              role="group"
+              aria-label={t("chineseChess")}
+              style={{ width: "calc(36px * 8)", height: "calc(36px * 9)" }}
+            >
+              {board.map((row, rowIndex) => (
+                row.map((piece, colIndex) => {
+                  const isSelected = selectedPos?.row === rowIndex && selectedPos?.col === colIndex
+                  const isValidTarget = isValidMoveTarget(rowIndex, colIndex)
+                  const lastMove = moveHistory[moveHistory.length - 1]
+                  const isLastMoveFrom = lastMove?.from.row === rowIndex && lastMove?.from.col === colIndex
+                  const isLastMoveTo = lastMove?.to.row === rowIndex && lastMove?.to.col === colIndex
+
+                  return (
+                    <button
+                      key={`${rowIndex}-${colIndex}`}
+                      onClick={() => handleCellClick(rowIndex, colIndex)}
+                      disabled={gameStatus === "checkmate" || gameStatus === "stalemate"}
+                      aria-label={`${rowIndex + 1}, ${colIndex + 1}, ${piece ? `${piece.color === "red" ? t("redTurn") : t("blackTurn")} ${getPieceName(piece)}` : "empty"}${isValidTarget ? ", valid move" : ""}`}
+                      aria-pressed={isSelected}
+                      className="absolute flex items-center justify-center transition-all"
+                      style={{
+                        left: `${colIndex * 36 - 18}px`,
+                        top: `${rowIndex * 36 - 18}px`,
+                        width: "36px",
+                        height: "36px",
+                        zIndex: isSelected ? 10 : 1,
+                      }}
+                    >
+                      {/* Last move highlight */}
+                      {(isLastMoveFrom || isLastMoveTo) && (
+                        <div className="absolute h-8 w-8 rounded bg-yellow-400/40" aria-hidden="true" />
+                      )}
+
+                      {/* Valid move indicator */}
+                      {isValidTarget && !piece && (
+                        <div className="absolute h-4 w-4 rounded-full bg-green-500/70 shadow" aria-hidden="true" />
+                      )}
+
+                      {/* Piece */}
+                      {piece && (
+                        <div
+                          aria-hidden="true"
+                          className={`
+                            flex items-center justify-center rounded-full border-2
+                            h-8 w-8 text-sm font-bold
+                            shadow-lg transition-transform
+                            ${piece.color === "red"
+                              ? "border-red-700 bg-gradient-to-br from-amber-50 to-amber-100 text-red-600"
+                              : "border-slate-600 bg-gradient-to-br from-slate-50 to-slate-200 text-slate-800"
+                            }
+                            ${isSelected ? "scale-110 ring-2 ring-yellow-400" : ""}
+                            ${isValidTarget ? "ring-2 ring-green-400" : ""}
+                          `}
+                        >
+                          {getPieceName(piece)}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })
+              ))}
+            </div>
           </div>
+
         </div>
 
         {/* Controls */}

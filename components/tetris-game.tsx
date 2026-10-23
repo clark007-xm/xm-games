@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useReducer } from "react"
+import { useCallback, useEffect, useReducer, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
+import { shouldIgnoreGameKey } from "@/lib/game-input"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown } from "lucide-react"
 import {
   BOARD_WIDTH,
@@ -41,6 +42,7 @@ export function TetrisGame() {
     createInitialState
   )
   const { nextPiece, score, lines, level, phase } = state
+  const [round, setRound] = useState(0)
 
   const randomPiece = useCallback(
     () => pickTetromino(Math.random()),
@@ -58,18 +60,22 @@ export function TetrisGame() {
 
   useEffect(() => {
     if (phase !== "playing") return
+    let active = true
 
     const speed = Math.max(100, 1000 - (level - 1) * 100)
     const gameLoop = window.setInterval(() => {
-      dispatch({ type: "tick", nextPiece: randomPiece() })
+      if (active) dispatch({ type: "tick", nextPiece: randomPiece() })
     }, speed)
 
-    return () => window.clearInterval(gameLoop)
-  }, [level, phase, randomPiece])
+    return () => {
+      active = false
+      window.clearInterval(gameLoop)
+    }
+  }, [level, phase, randomPiece, round])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (phase !== "playing") return
+      if (phase !== "playing" || shouldIgnoreGameKey(e)) return
 
       switch (e.key) {
         case "ArrowLeft":
@@ -90,7 +96,7 @@ export function TetrisGame() {
           break
         case " ":
           e.preventDefault()
-          hardDrop()
+          if (!e.repeat) hardDrop()
           break
       }
     }
@@ -100,6 +106,7 @@ export function TetrisGame() {
   }, [phase, movePiece, rotatePiece, hardDrop])
 
   const startGame = () => {
+    setRound(value => value + 1)
     dispatch({
       type: "start",
       firstPiece: randomPiece(),
@@ -126,9 +133,9 @@ export function TetrisGame() {
       <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         <h1 className="text-3xl font-bold text-white">{t("tetris")}</h1>
 
-        <div className="flex gap-4">
+        <div className="grid w-full max-w-[400px] grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
           {/* Game Board */}
-          <Card className="border-slate-700 bg-slate-800/50">
+          <Card className="min-w-0 self-start border-slate-700 bg-slate-800/50">
             <CardContent className="p-2">
               <div
                 className="grid gap-[1px] rounded bg-slate-900 p-1"
@@ -142,7 +149,7 @@ export function TetrisGame() {
                   row.map((cell, x) => (
                     <div
                       key={`${y}-${x}`}
-                      className={`h-5 w-5 rounded-sm ${getCellColor(cell)} sm:h-6 sm:w-6`}
+                      className={`aspect-square min-w-0 rounded-sm ${getCellColor(cell)}`}
                       aria-hidden="true"
                     />
                   ))
@@ -198,7 +205,7 @@ export function TetrisGame() {
             </Card>
 
             {/* Controls */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:whitespace-normal [&>button]:px-2">
               {phase === "idle" && (
                 <Button onClick={startGame} className="gap-2 bg-green-600 hover:bg-green-700">
                   <Play className="h-4 w-4" aria-hidden="true" />
@@ -224,7 +231,7 @@ export function TetrisGame() {
                   {t("resume")}
                 </Button>
               )}
-              {phase === "gameOver" && (
+              {phase !== "idle" && (
                 <Button onClick={startGame} variant="outline" className="gap-2">
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   {t("restart")}
@@ -245,7 +252,7 @@ export function TetrisGame() {
         )}
 
         {/* Mobile Controls */}
-        <div className="flex flex-col items-center gap-2 md:hidden">
+        <div className="flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex">
           <Button
             variant="outline"
             size="icon"
@@ -302,8 +309,8 @@ export function TetrisGame() {
 
         {/* Instructions */}
         <div className="text-center text-sm text-slate-500">
-          <span className="hidden md:inline">{t("tetrisControls")}</span>
-          <span className="md:hidden">{t("tetrisControlsMobile")}</span>
+          <span className="hidden md:inline [@media(pointer:coarse)]:hidden">{t("tetrisControls")}</span>
+          <span className="md:hidden [@media(pointer:coarse)]:inline">{t("tetrisControlsMobile")}</span>
         </div>
       </main>
     </div>

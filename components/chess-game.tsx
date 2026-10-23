@@ -29,7 +29,7 @@ const pieceSymbols: Record<Color, Record<PieceType, string>> = {
 export function ChessGame() {
   const { t } = useLocale()
 
-  const [board, setBoard] = useState<ChessBoard>(() => createInitialBoard())
+  const [board, setBoard] = useState<ChessBoard>(createInitialBoard)
   const [currentTurn, setCurrentTurn] = useState<Color>("white")
   const [selectedPos, setSelectedPos] = useState<Position | null>(null)
   const [validMoves, setValidMoves] = useState<Position[]>([])
@@ -46,6 +46,7 @@ export function ChessGame() {
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null)
   const [whiteUndoUsed, setWhiteUndoUsed] = useState(false)
   const [blackUndoUsed, setBlackUndoUsed] = useState(false)
+  const ended = gameStatus === "checkmate" || gameStatus === "stalemate"
 
   const resetGame = useCallback(() => {
     setBoard(createInitialBoard())
@@ -87,7 +88,7 @@ export function ChessGame() {
       }
 
       // Save history
-      setHistory(prev => [...prev, {
+      setHistory([...history, {
         board: board.map(r => [...r]),
         turn: currentTurn,
         castling: { ...castlingRights },
@@ -135,7 +136,7 @@ export function ChessGame() {
 
       setCurrentTurn(opponent)
     }
-  }, [board, selectedPos, currentTurn, validMoves, gameStatus, enPassantTarget, castlingRights])
+  }, [board, selectedPos, currentTurn, validMoves, gameStatus, enPassantTarget, castlingRights, history])
 
   const handleUndo = useCallback(() => {
     if (history.length === 0) return
@@ -150,7 +151,7 @@ export function ChessGame() {
     setCurrentTurn(lastState.turn)
     setCastlingRights(lastState.castling)
     setEnPassantTarget(lastState.enPassant)
-    setHistory(prev => prev.slice(0, -1))
+    setHistory(history.slice(0, -1))
     setSelectedPos(null)
     setValidMoves([])
     setGameStatus(isInCheck(lastState.board, lastState.turn) ? "check" : "playing")
@@ -184,21 +185,21 @@ export function ChessGame() {
         aria-live="polite"
       >
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-center gap-4">
+          {!ended && <div className="flex items-center justify-center gap-4">
             <div className="flex items-center gap-2">
-              <span className={`text-2xl ${currentTurn === "white" ? "opacity-100" : "opacity-40"}`}>♔</span>
+              <span aria-hidden="true" className={`text-2xl ${currentTurn === "white" ? "text-slate-100" : "text-slate-400"}`}>♔</span>
               <span className={`text-sm ${currentTurn === "white" ? "text-slate-100" : "text-slate-100/50"}`}>
                 {t("whiteTurn")}
               </span>
             </div>
             <div className="h-4 w-px bg-slate-600" />
             <div className="flex items-center gap-2">
-              <span className={`text-2xl ${currentTurn === "black" ? "opacity-100" : "opacity-40"}`}>♚</span>
+              <span aria-hidden="true" className={`text-2xl ${currentTurn === "black" ? "text-slate-100" : "text-slate-400"}`}>♚</span>
               <span className={`text-sm ${currentTurn === "black" ? "text-slate-100" : "text-slate-100/50"}`}>
                 {t("blackTurnChess")}
               </span>
             </div>
-          </div>
+          </div>}
 
           {gameStatus === "check" && (
             <div className="flex justify-center">
@@ -209,20 +210,20 @@ export function ChessGame() {
           )}
           {gameStatus === "checkmate" && (
             <div className="flex justify-center">
-              <span className="rounded-full bg-red-500/20 px-3 py-1 text-sm font-bold text-red-400">
+              <span className="rounded-lg bg-amber-500/20 px-3 py-1 text-lg font-bold text-amber-200">
                 {winner === "white" ? t("whiteWinsChess") : t("blackWinsChess")}
               </span>
             </div>
           )}
           {gameStatus === "stalemate" && (
             <div className="flex justify-center">
-              <span className="rounded-full bg-slate-500/20 px-3 py-1 text-sm font-bold text-slate-400">
+              <span className="rounded-lg bg-slate-700 px-3 py-1 text-lg font-bold text-slate-100">
                 {t("stalemate")}
               </span>
             </div>
           )}
 
-          <div className="flex items-center justify-center gap-4 text-xs">
+          {!ended && <div className="flex items-center justify-center gap-4 text-xs">
             <span className="text-amber-200">
               {whiteUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
             </span>
@@ -230,7 +231,7 @@ export function ChessGame() {
             <span className="text-slate-400">
               {blackUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
             </span>
-          </div>
+          </div>}
         </div>
       </Card>
 
@@ -251,6 +252,7 @@ export function ChessGame() {
                 <button
                   key={`${rowIndex}-${colIndex}`}
                   onClick={() => handleCellClick(rowIndex, colIndex)}
+                  disabled={gameStatus === "checkmate" || gameStatus === "stalemate"}
                   aria-label={`${square}, ${cellContent}${isValid ? ", valid move" : ""}`}
                   aria-pressed={isSelected}
                   className={`

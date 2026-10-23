@@ -39,6 +39,8 @@ pnpm test:watch # 监听模式运行测试
 
 ## 主要目录
 
+界面维护请先阅读 [共用设计规则与四组配色规范](docs/ui-design-system.md)。
+
 ```text
 app/         页面、路由、布局与全局样式
 components/  游戏界面及通用 UI 组件

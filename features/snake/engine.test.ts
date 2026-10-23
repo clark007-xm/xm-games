@@ -4,6 +4,7 @@ import {
   advanceSnake,
   createInitialSnakeState,
   pickFood,
+  snakeReducer,
   type Position,
   type SnakeState,
 } from "./engine"
@@ -17,6 +18,24 @@ function playingState(overrides: Partial<SnakeState>): SnakeState {
 }
 
 describe("advanceSnake", () => {
+  it("rejects a rapid 180 degree reversal against the committed direction and scores food once", () => {
+    let state = playingState({
+      snake: [{ x: 1, y: 1 }, { x: 0, y: 1 }], food: { x: 1, y: 0 },
+      direction: { x: 1, y: 0 }, nextDirection: { x: 1, y: 0 },
+    })
+    for (let i = 0; i < 20; i++) {
+      state = snakeReducer(state, { type: "changeDirection", direction: { x: 0, y: -1 } })
+      state = snakeReducer(state, { type: "changeDirection", direction: { x: -1, y: 0 } })
+    }
+    expect(state.score).toBe(0)
+    state = snakeReducer(state, { type: "tick", foodRoll: 0 })
+    expect(state.snake[0]).toEqual({ x: 1, y: 0 })
+    expect(state.snake).toHaveLength(3)
+    expect(state.score).toBe(10)
+    state = snakeReducer(state, { type: "tick", foodRoll: 0 })
+    expect(state.score).toBe(10)
+  })
+
   it("allows moving into the tail cell when the tail is about to leave", () => {
     const direction: Position = { x: -1, y: 0 }
     const state = playingState({

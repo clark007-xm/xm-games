@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef, type TouchEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
+import { InlineNotice } from "@/components/inline-notice"
 import { GameRulesDialog } from "@/components/game-rules-dialog"
+import { shouldIgnoreGameKey } from "@/lib/game-input"
 import { RotateCcw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Board = (number | null)[][]
@@ -103,7 +105,7 @@ function rotateBoard(board: Board): Board {
 
 function moveInDirection(board: Board, direction: "left" | "right" | "up" | "down"): { newBoard: Board; score: number; moved: boolean } {
   let rotated = board
-  const rotations = { left: 0, up: 1, right: 2, down: 3 }
+  const rotations = { left: 0, up: 3, right: 2, down: 1 }
   
   for (let i = 0; i < rotations[direction]; i++) {
     rotated = rotateBoard(rotated)
@@ -146,16 +148,16 @@ function hasWon(board: Board): boolean {
 const TILE_COLORS: Record<number, string> = {
   2: "bg-amber-100 text-amber-900",
   4: "bg-amber-200 text-amber-900",
-  8: "bg-orange-300 text-white",
-  16: "bg-orange-400 text-white",
-  32: "bg-orange-500 text-white",
+  8: "bg-orange-300 text-slate-900",
+  16: "bg-orange-400 text-slate-900",
+  32: "bg-orange-500 text-slate-900",
   64: "bg-orange-600 text-white",
-  128: "bg-yellow-400 text-white",
-  256: "bg-yellow-500 text-white",
-  512: "bg-yellow-600 text-white",
+  128: "bg-yellow-400 text-slate-900",
+  256: "bg-yellow-500 text-slate-900",
+  512: "bg-yellow-600 text-slate-900",
   1024: "bg-yellow-700 text-white",
-  2048: "bg-yellow-500 text-white",
-  4096: "bg-red-500 text-white",
+  2048: "bg-yellow-500 text-slate-900",
+  4096: "bg-red-500 text-slate-900",
   8192: "bg-red-600 text-white",
 }
 
@@ -171,13 +173,25 @@ export function Game2048() {
   const [bestScore, setBestScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [won, setWon] = useState(false)
+  const [storageUnavailable, setStorageUnavailable] = useState(false)
+  // Native keyboard and touch events can arrive before React commits a render.
+  const liveGame = useRef({ board, score, bestScore, gameOver, won })
+  const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
-    const saved = localStorage.getItem("2048-best")
-    if (saved) setBestScore(parseInt(saved))
+    try {
+      const saved = localStorage.getItem("2048-best")
+      const parsed = saved ? Number.parseInt(saved, 10) : 0
+      const best = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+      liveGame.current.bestScore = best
+      setBestScore(best)
+    } catch {
+      setStorageUnavailable(true)
+    }
   }, [])
 
   const handleMove = useCallback((direction: "left" | "right" | "up" | "down") => {
+    const { board, score, bestScore, gameOver, won } = liveGame.current
     if (gameOver) return
 
     const { newBoard, score: addedScore, moved } = moveInDirection(board, direction)
@@ -185,37 +199,44 @@ export function Game2048() {
     if (!moved) return
     
     const boardWithNewTile = addRandomTile(newBoard)
+    const newScore = score + addedScore
+    const nextWon = won || hasWon(boardWithNewTile)
+    const nextGameOver = !canMove(boardWithNewTile)
+    liveGame.current = {
+      board: boardWithNewTile, score: newScore, bestScore: Math.max(bestScore, newScore),
+      won: nextWon, gameOver: nextGameOver,
+    }
     setBoard(boardWithNewTile)
     
-    const newScore = score + addedScore
     setScore(newScore)
     
     if (newScore > bestScore) {
       setBestScore(newScore)
-      localStorage.setItem("2048-best", String(newScore))
+      try {
+        localStorage.setItem("2048-best", String(newScore))
+        setStorageUnavailable(false)
+      } catch {
+        setStorageUnavailable(true)
+      }
     }
     
-    if (hasWon(boardWithNewTile) && !won) {
-      setWon(true)
-    }
-    
-    if (!canMove(boardWithNewTile)) {
-      setGameOver(true)
-    }
-  }, [board, score, bestScore, gameOver, won])
+    setWon(nextWon)
+    setGameOver(nextGameOver)
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d"].includes(e.key)) {
+      if (shouldIgnoreGameKey(e)) return
+      const directionMap: Record<string, "left" | "right" | "up" | "down"> = {
+        ArrowUp: "up", w: "up", W: "up",
+        ArrowDown: "down", s: "down", S: "down",
+        ArrowLeft: "left", a: "left", A: "left",
+        ArrowRight: "right", d: "right", D: "right",
+      }
+      const direction = directionMap[e.key]
+      if (direction) {
         e.preventDefault()
-        const directionMap: Record<string, "left" | "right" | "up" | "down"> = {
-          ArrowUp: "up", w: "up", W: "up",
-          ArrowDown: "down", s: "down", S: "down",
-          ArrowLeft: "left", a: "left", A: "left",
-          ArrowRight: "right", d: "right", D: "right",
-        }
-        const direction = directionMap[e.key]
-        if (direction) handleMove(direction)
+        handleMove(direction)
       }
     }
     
@@ -224,10 +245,35 @@ export function Game2048() {
   }, [handleMove])
 
   const resetGame = () => {
-    setBoard(createRandomBoard())
+    swipeStart.current = null
+    const nextBoard = createRandomBoard()
+    liveGame.current = { ...liveGame.current, board: nextBoard, score: 0, gameOver: false, won: false }
+    setBoard(nextBoard)
     setScore(0)
     setGameOver(false)
     setWon(false)
+  }
+
+  const startSwipe = (event: TouchEvent<HTMLDivElement>) => {
+    if (gameOver || event.touches.length !== 1) {
+      swipeStart.current = null
+      return
+    }
+    const touch = event.touches[0]
+    swipeStart.current = { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+  }
+
+  const finishSwipe = (event: TouchEvent<HTMLDivElement>) => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    const touch = event.changedTouches[0]
+    if (!start || !touch || start.id !== touch.identifier) return
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return
+    handleMove(Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? "right" : "left")
+      : (dy > 0 ? "down" : "up"))
   }
 
   return (
@@ -252,18 +298,26 @@ export function Game2048() {
           </Card>
         </div>
 
+        {storageUnavailable && <InlineNotice className="max-w-md">{t("highScoreStorageError")}</InlineNotice>}
         {/* Game status */}
         {(gameOver || won) && (
           <div role="status" aria-live="assertive" className={`rounded-lg px-4 py-2 text-lg font-bold ${
-            won ? "bg-yellow-500/20 text-yellow-300" : "bg-red-500/20 text-red-300"
+            gameOver ? "bg-red-950 text-red-100" : "bg-amber-950 text-amber-100"
           }`}>
-            {won ? t("youWin") : t("gameOver")}
+            {gameOver ? t("gameOver") : t("youWin")}
           </div>
         )}
 
         {/* Game board */}
         <div className="rounded-lg bg-amber-700 p-3">
-          <div className="grid grid-cols-4 gap-2" role="group" aria-label="2048">
+          <div
+            className="grid touch-none select-none grid-cols-4 gap-2"
+            role="group"
+            aria-label="2048"
+            onTouchStart={startSwipe}
+            onTouchEnd={finishSwipe}
+            onTouchCancel={() => { swipeStart.current = null }}
+          >
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => (
                 <div
@@ -286,11 +340,12 @@ export function Game2048() {
         </div>
 
         {/* Mobile controls */}
-        <div className="grid grid-cols-3 gap-2 sm:hidden">
+        <div className="grid grid-cols-3 gap-2 sm:hidden [@media(pointer:coarse)]:grid [&>button]:h-12 [&>button]:w-12 [&>button]:p-0">
           <div />
           <Button
             onClick={() => handleMove("up")}
             aria-label={directionLabels.up}
+            disabled={gameOver}
             variant="outline"
             size="lg"
             className="border-amber-600 bg-amber-700/50 text-white"
@@ -301,6 +356,7 @@ export function Game2048() {
           <Button
             onClick={() => handleMove("left")}
             aria-label={directionLabels.left}
+            disabled={gameOver}
             variant="outline"
             size="lg"
             className="border-amber-600 bg-amber-700/50 text-white"
@@ -310,6 +366,7 @@ export function Game2048() {
           <Button
             onClick={() => handleMove("down")}
             aria-label={directionLabels.down}
+            disabled={gameOver}
             variant="outline"
             size="lg"
             className="border-amber-600 bg-amber-700/50 text-white"
@@ -319,6 +376,7 @@ export function Game2048() {
           <Button
             onClick={() => handleMove("right")}
             aria-label={directionLabels.right}
+            disabled={gameOver}
             variant="outline"
             size="lg"
             className="border-amber-600 bg-amber-700/50 text-white"

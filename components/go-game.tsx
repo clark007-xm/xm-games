@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { GameHeader } from "@/components/game-header"
+import { InlineNotice } from "@/components/inline-notice"
 import { GameRulesDialog } from "@/components/game-rules-dialog"
 import {
   calculateTerritory,
@@ -46,6 +47,7 @@ export function GoGame() {
   const [lastMove, setLastMove] = useState<Position | null>(null)
   const [blackUndoUsed, setBlackUndoUsed] = useState(false)
   const [whiteUndoUsed, setWhiteUndoUsed] = useState(false)
+  const [moveError, setMoveError] = useState<"goRule3" | "goRule4" | null>(null)
 
   const resetGame = useCallback(() => {
     setBoard(createEmptyBoard(BOARD_SIZE))
@@ -58,6 +60,7 @@ export function GoGame() {
     setLastMove(null)
     setBlackUndoUsed(false)
     setWhiteUndoUsed(false)
+    setMoveError(null)
   }, [])
 
   const handleCellClick = useCallback((row: number, col: number) => {
@@ -92,16 +95,19 @@ export function GoGame() {
     // Check if our own group has liberties (suicide rule)
     const ownGroup = getGroup(newBoard, row, col)
     if (countLiberties(newBoard, ownGroup) === 0) {
+      setMoveError("goRule3")
       return // Suicide not allowed
     }
 
     // Check Ko rule
     if (previousBoard && isBoardSame(newBoard, previousBoard)) {
+      setMoveError("goRule4")
       return // Ko violation
     }
 
     // Save history for undo
-    setHistory((previous) => [...previous, {
+    setMoveError(null)
+    setHistory([...history, {
       board: cloneBoard(board),
       captures: { ...captures },
       previousBoard: previousBoard ? cloneBoard(previousBoard) : null,
@@ -114,12 +120,13 @@ export function GoGame() {
     setCurrentTurn(opponent)
     setPassCount(0)
     setLastMove({ row, col })
-  }, [board, currentTurn, gameStatus, captures, previousBoard, passCount, lastMove])
+  }, [board, currentTurn, gameStatus, captures, previousBoard, passCount, lastMove, history])
 
   const handlePass = useCallback(() => {
     if (gameStatus !== "playing") return
+    setMoveError(null)
 
-    setHistory((previous) => [...previous, {
+    setHistory([...history, {
       board: cloneBoard(board),
       captures: { ...captures },
       previousBoard: previousBoard ? cloneBoard(previousBoard) : null,
@@ -139,7 +146,7 @@ export function GoGame() {
     if (newPassCount >= 2) {
       setGameStatus("ended")
     }
-  }, [gameStatus, passCount, currentTurn, board, captures, previousBoard, lastMove])
+  }, [gameStatus, passCount, currentTurn, board, captures, previousBoard, lastMove, history])
 
   const handleUndo = useCallback(() => {
     if (history.length === 0) return
@@ -151,10 +158,11 @@ export function GoGame() {
     if (undoingPlayer === "white" && whiteUndoUsed) return
 
     const lastState = history[history.length - 1]
+    setMoveError(null)
     setBoard(lastState.board)
     setCaptures(lastState.captures)
     setPreviousBoard(lastState.previousBoard)
-    setHistory(prev => prev.slice(0, -1))
+    setHistory(history.slice(0, -1))
     setCurrentTurn(undoingPlayer)
     setPassCount(lastState.passCount)
     setLastMove(lastState.lastMove)
@@ -192,7 +200,7 @@ export function GoGame() {
       {/* Game Status */}
       <Card className="mb-4 w-full max-w-lg border-amber-600 bg-amber-800/50 p-3" role="status" aria-live="polite">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-center gap-4">
+          {gameStatus === "playing" && <div className="flex items-center justify-center gap-4">
             <div className="flex items-center gap-2">
               <div className={`h-5 w-5 rounded-full border-2 ${currentTurn === "black" ? "border-amber-300 bg-slate-900" : "border-transparent bg-slate-800"}`} />
               <span className={`text-sm ${currentTurn === "black" ? "text-amber-100" : "text-amber-100/50"}`}>
@@ -206,7 +214,7 @@ export function GoGame() {
                 {t("whiteStone")} ({captures.white})
               </span>
             </div>
-          </div>
+          </div>}
 
           {gameStatus === "ended" && (
             <div className="mt-2 text-center">
@@ -219,7 +227,7 @@ export function GoGame() {
             </div>
           )}
 
-          <div className="flex items-center justify-center gap-4 text-xs">
+          {gameStatus === "playing" && <div className="flex items-center justify-center gap-4 text-xs">
             <span className="text-slate-300">
               {blackUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
             </span>
@@ -227,11 +235,13 @@ export function GoGame() {
             <span className="text-amber-200">
               {whiteUndoUsed ? t("undoUsed") : `${t("undoRemaining")}: 1`}
             </span>
-          </div>
+          </div>}
         </div>
       </Card>
 
       {/* Board */}
+      {moveError && <InlineNotice className="mb-4 w-full max-w-lg">{t(moveError)}</InlineNotice>}
+      {passCount === 1 && <p role="status" className="mb-3 max-w-lg text-center text-sm text-amber-100">{t("passRecorded")}</p>}
       <div 
         className="relative rounded-lg border-4 border-amber-700 bg-[#dcb35c] p-3 shadow-xl"
         style={{
@@ -300,6 +310,7 @@ export function GoGame() {
               <button
                 key={`${rowIndex}-${colIndex}`}
                 onClick={() => handleCellClick(rowIndex, colIndex)}
+                disabled={gameStatus === "ended" || stone !== null}
                 aria-label={`${rowIndex + 1}, ${colIndex + 1}, ${stone === "black" ? t("blackStone") : stone === "white" ? t("whiteStone") : "empty"}`}
                 aria-current={lastMove?.row === rowIndex && lastMove?.col === colIndex ? "true" : undefined}
                 className="absolute flex items-center justify-center"

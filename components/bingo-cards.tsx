@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useLocale } from "@/lib/locale-context"
+import { InlineNotice } from "@/components/inline-notice"
+import type { TranslationKey } from "@/lib/i18n"
 import { GameHeader } from "@/components/game-header"
 import { Plus, Trash2, Mic, MicOff, RotateCcw } from "lucide-react"
 import { parseBingoNumbers } from "@/features/bingo/number-parser"
@@ -133,11 +135,15 @@ declare global {
 export function BingoCards() {
   const { t, locale } = useLocale()
   const [cards, setCards] = useState<BingoCard[]>([])
+  const nextCardNumber = useRef(1)
   const [drawnNumbers, setDrawnNumbers] = useState<Set<number>>(new Set())
   const [inputNumber, setInputNumber] = useState("")
   const [isListening, setIsListening] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
+  const [inputError, setInputError] = useState<TranslationKey | null>(null)
+  const [speechError, setSpeechError] = useState<TranslationKey | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionPhase = useRef<"idle" | "starting" | "listening" | "stopping">("idle")
   const shouldListenRef = useRef(false)
   const mountedRef = useRef(false)
   const localeRef = useRef(locale)
@@ -150,6 +156,16 @@ export function BingoCards() {
       restartTimerRef.current = null
     }
   }, [])
+
+  const stopListening = useCallback(() => {
+    shouldListenRef.current = false
+    clearRestartTimer()
+    setIsListening(false)
+    if (recognitionPhase.current !== "idle") {
+      recognitionPhase.current = "stopping"
+      try { recognitionRef.current?.abort() } catch { recognitionPhase.current = "idle" }
+    }
+  }, [clearRestartTimer])
 
   // Speak "Bingo" announcement
   const speakBingo = useCallback((cardName: string) => {
@@ -171,7 +187,7 @@ export function BingoCards() {
     utterance.lang = langMap[locale] || "en-US"
     utterance.rate = 0.9
     utterance.volume = 1
-    window.speechSynthesis.cancel()
+    // Let the browser queue every winner, including cards that win together.
     window.speechSynthesis.speak(utterance)
   }, [locale])
 
@@ -193,14 +209,23 @@ export function BingoCards() {
     if (!SpeechRecognitionConstructor) return
 
     mountedRef.current = true
-    const recognition = new SpeechRecognitionConstructor()
+    let recognition: SpeechRecognition
+    try {
+      recognition = new SpeechRecognitionConstructor()
+    } catch {
+      setSpeechSupported(false)
+      return
+    }
     recognition.continuous = true
     recognition.interimResults = false
     recognition.lang = SPEECH_LANGUAGE[localeRef.current]
 
     recognitionRef.current = recognition
+    recognitionPhase.current = "idle"
 
     const handleResult = (event: SpeechRecognitionEvent) => {
+      if (!mountedRef.current || !shouldListenRef.current ||
+          recognitionRef.current !== recognition || recognitionPhase.current !== "listening") return
       const transcripts: string[] = []
       for (let index = event.resultIndex; index < event.results.length; index++) {
         const result = event.results[index]
@@ -218,17 +243,19 @@ export function BingoCards() {
     }
 
     const handleError = (event: SpeechRecognitionErrorEvent) => {
-      console.warn("[bingo] Speech recognition error:", event.error)
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        shouldListenRef.current = false
-        clearRestartTimer()
-        if (mountedRef.current) setIsListening(false)
-      } else if (event.error === "aborted" && !shouldListenRef.current && mountedRef.current) {
-        setIsListening(false)
-      }
+      if (!mountedRef.current || !shouldListenRef.current || recognitionRef.current !== recognition ||
+          recognitionPhase.current === "stopping") return
+      shouldListenRef.current = false
+      clearRestartTimer()
+      setIsListening(false)
+      setSpeechError(event.error === "not-allowed" || event.error === "service-not-allowed" ? "speechPermissionDenied" : "speechUnavailable")
+      recognitionPhase.current = "stopping"
+      try { recognition.abort() } catch { recognitionPhase.current = "idle" }
     }
 
     const scheduleRestart = () => {
+      if (recognitionRef.current !== recognition) return
+      recognitionPhase.current = "idle"
       clearRestartTimer()
       if (!mountedRef.current || !shouldListenRef.current) return
 
@@ -243,9 +270,13 @@ export function BingoCards() {
         }
 
         try {
+          recognitionPhase.current = "starting"
           recognition.start()
         } catch {
-          scheduleRestart()
+          recognitionPhase.current = "idle"
+          shouldListenRef.current = false
+          setIsListening(false)
+          setSpeechError("speechUnavailable")
         }
       }, 150)
     }
@@ -254,12 +285,16 @@ export function BingoCards() {
     recognition.onerror = handleError
     recognition.onend = scheduleRestart
     recognition.onstart = () => {
-      if (mountedRef.current && shouldListenRef.current) setIsListening(true)
+      if (mountedRef.current && shouldListenRef.current && recognitionPhase.current === "starting") {
+        recognitionPhase.current = "listening"
+        setIsListening(true)
+      }
     }
 
     return () => {
       mountedRef.current = false
       shouldListenRef.current = false
+      recognitionPhase.current = "idle"
       clearRestartTimer()
       recognition.onresult = null
       recognition.onerror = null
@@ -286,54 +321,62 @@ export function BingoCards() {
     }
 
     if (shouldListenRef.current) {
-      shouldListenRef.current = false
-      clearRestartTimer()
-      setIsListening(false)
-      try {
-        recognition.abort()
-      } catch {
-        // The recognizer may already be inactive.
-      }
+      stopListening()
       return
     }
 
     shouldListenRef.current = true
+    setSpeechError(null)
+    setIsListening(true)
+    // An abort is asynchronous; wait for its end event before starting again.
+    if (recognitionPhase.current !== "idle") return
+    clearRestartTimer()
     recognition.lang = SPEECH_LANGUAGE[locale]
     try {
+      recognitionPhase.current = "starting"
       recognition.start()
-      setIsListening(true)
-    } catch (error) {
+    } catch {
+      recognitionPhase.current = "idle"
       shouldListenRef.current = false
       clearRestartTimer()
       setIsListening(false)
-      console.warn("[bingo] Failed to start speech recognition:", error)
+      setSpeechError("speechUnavailable")
     }
-  }, [clearRestartTimer, locale])
+  }, [clearRestartTimer, locale, stopListening])
 
   const addCard = useCallback(() => {
     const newCard: BingoCard = {
       id: crypto.randomUUID(),
       numbers: generateBingoCard(),
-      name: `${t("card")} ${cards.length + 1}`,
+      name: `${t("card")} ${nextCardNumber.current++}`,
     }
     setCards(prev => [...prev, newCard])
-  }, [cards.length, t])
+  }, [t])
 
   const removeCard = useCallback((id: string) => {
     setCards(prev => prev.filter(card => card.id !== id))
   }, [])
 
   const handleInputNumber = useCallback(() => {
-    const num = parseInt(inputNumber, 10)
-    if (!isNaN(num) && num >= 1 && num <= 75) {
+    const num = Number(inputNumber)
+    if (!Number.isInteger(num) || num < 1 || num > 75) {
+      setInputError("bingoInvalidNumber")
+    } else if (drawnNumbers.has(num)) {
+      setInputError("bingoDuplicateNumber")
+    } else {
+      setInputError(null)
       setDrawnNumbers(prev => new Set([...prev, num]))
       setInputNumber("")
     }
-  }, [inputNumber])
+  }, [inputNumber, drawnNumbers])
 
   const resetAll = useCallback(() => {
+    stopListening()
+    window.speechSynthesis?.cancel()
     setDrawnNumbers(new Set())
-  }, [])
+    setInputError(null)
+    setInputNumber("")
+  }, [stopListening])
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -404,21 +447,27 @@ export function BingoCards() {
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
               {/* Number Input */}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={75}
-                  value={inputNumber}
-                  aria-label={t("enterNumber")}
-                  onChange={(e) => setInputNumber(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder={t("enterNumber")}
-                  className="w-32 border-slate-600 bg-slate-700 text-white"
-                />
-                <Button onClick={handleInputNumber} variant="secondary">
-                  {t("confirm")}
-                </Button>
+              <div className="flex w-full flex-col gap-1.5 sm:w-auto">
+                <label htmlFor="bingo-number" className="text-sm text-slate-300">
+                  {t("enterNumber")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="bingo-number"
+                    type="number"
+                    min={1}
+                    max={75}
+                    value={inputNumber}
+                    aria-invalid={Boolean(inputError)}
+                    aria-describedby={inputError ? "bingo-input-error" : undefined}
+                    onChange={(e) => { setInputNumber(e.target.value); setInputError(null) }}
+                    onKeyPress={handleKeyPress}
+                    className="min-w-0 flex-1 border-slate-600 bg-slate-700 text-white sm:w-44"
+                  />
+                  <Button onClick={handleInputNumber} variant="secondary">
+                    {t("confirm")}
+                  </Button>
+                </div>
               </div>
 
               {/* Voice Recognition */}
@@ -450,6 +499,10 @@ export function BingoCards() {
                 {t("markedCount")}: <span className="font-bold text-white">{drawnNumbers.size}</span> / 75
               </div>
             </div>
+
+            {inputError && <InlineNotice id="bingo-input-error" className="mt-3">{t(inputError)}</InlineNotice>}
+            {speechError && <InlineNotice className="mt-3">{t(speechError)}</InlineNotice>}
+            {speechSupported === false && <p className="mt-3 text-sm text-slate-300">{t("speechUnsupported")}</p>}
 
             {/* Drawn Numbers Display */}
             {drawnNumbers.size > 0 && (
@@ -540,7 +593,7 @@ export function BingoCards() {
                               isFree
                                 ? "bg-amber-500/30 text-amber-400"
                                 : isMarked
-                                ? "bg-green-500 text-white"
+                                ? "bg-green-500 text-slate-900"
                                 : "bg-slate-700 text-slate-300"
                             }`}
                           >

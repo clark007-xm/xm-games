@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -34,6 +34,7 @@ import {
 import { useLocale } from "@/lib/locale-context"
 import type { TranslationKey } from "@/lib/i18n"
 import { GameHeader } from "@/components/game-header"
+import { InlineNotice } from "@/components/inline-notice"
 import { 
   Plus, 
   Minus, 
@@ -147,14 +148,14 @@ function parseStoredValue<T>(
     // Invalid JSON falls through to the safe default below.
   }
 
-  console.error(`Failed to parse ${label}`)
-  return fallback
+  throw new Error(`Failed to parse ${label}`)
 }
 
 export function AnimeTracker() {
   const { t } = useLocale()
   const [animeList, setAnimeList] = useState<Anime[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const saveCommitted = useRef(false)
   const [editingAnime, setEditingAnime] = useState<Anime | null>(null)
   const [activeTab, setActiveTab] = useState<AnimeStatus | "all">("watching")
 
@@ -172,8 +173,15 @@ export function AnimeTracker() {
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<JikanAnime[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [selectedSearchTitle, setSelectedSearchTitle] = useState<string | null>(null)
   const [imageCache, setImageCache] = useState<Record<string, string>>({})
   const [isStorageReady, setIsStorageReady] = useState(false)
+  const [storageError, setStorageError] = useState<"storageReadError" | "storageWriteError" | null>(null)
+  const [storageAttempt, setStorageAttempt] = useState(0)
+  const [searchError, setSearchError] = useState(false)
+  const [searchEmpty, setSearchEmpty] = useState(false)
+  const [searchAttempt, setSearchAttempt] = useState(0)
+  const [formError, setFormError] = useState(false)
 
   // Load both persisted values before enabling writes. The ready guard is
   // important in development too, where Strict Mode replays effects.
@@ -185,20 +193,15 @@ export function AnimeTracker() {
         isAnimeList,
         "saved anime list"
       )
-      const savedImageCache = parseStoredValue(
-        localStorage.getItem(IMAGE_CACHE_KEY),
-        {},
-        isImageCache,
-        "image cache"
-      )
-
       setAnimeList(savedAnimeList)
-      setImageCache(savedImageCache)
-    } catch {
-      console.error("Failed to read anime tracker storage")
-    } finally {
       setIsStorageReady(true)
+    } catch {
+      // Preserve unreadable user data. A failed read must never enable writes.
+      setStorageError("storageReadError")
     }
+    try {
+      setImageCache(parseStoredValue(localStorage.getItem(IMAGE_CACHE_KEY), {}, isImageCache, "image cache"))
+    } catch { /* The optional cover cache can be rebuilt by later searches. */ }
   }, [])
 
   // Persist only after the initial read has completed. This prevents the
@@ -209,72 +212,85 @@ export function AnimeTracker() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(animeList))
       localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(imageCache))
+      setStorageError(null)
     } catch {
-      console.error("Failed to save anime tracker storage")
+      setStorageError("storageWriteError")
     }
-  }, [animeList, imageCache, isStorageReady])
+  }, [animeList, imageCache, isStorageReady, storageAttempt])
 
-  // Search anime using Jikan API (MyAnimeList)
-  const searchAnime = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 2) {
-      setSearchResults([])
-      setShowSearchResults(false)
-      return
-    }
-
-    // Check cache first
-    const cacheKey = query.toLowerCase().trim()
-    if (imageCache[cacheKey]) {
-      setFormImageUrl(imageCache[cacheKey])
-    }
-
-    setIsSearching(true)
-    try {
-      const response = await fetch(
-        `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=5`
-      )
-      if (response.ok) {
-        const data = await response.json()
-        setSearchResults(data.data || [])
-        setShowSearchResults(true)
-      }
-    } catch (error) {
-      console.error("Failed to search anime:", error)
-    } finally {
-      setIsSearching(false)
-    }
-  }, [imageCache])
-
-  // Debounced search
+  // Each query owns its timer and request. Cleanup also guards responses whose
+  // fetch/JSON promises finish after the query or dialog has changed.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (formTitle && formType === "anime" && !editingAnime) {
-        searchAnime(formTitle)
+    setSearchResults([])
+    setShowSearchResults(false)
+    setIsSearching(false)
+    setSearchError(false)
+    setSearchEmpty(false)
+
+    const query = formTitle.trim()
+    if (
+      !isAddDialogOpen || formType !== "anime" || editingAnime ||
+      query.length < 2 || formTitle === selectedSearchTitle
+    ) return
+
+    const controller = new AbortController()
+    let requestTimeout: ReturnType<typeof setTimeout> | undefined
+    const timer = setTimeout(async () => {
+      const cachedImage = imageCache[query.toLowerCase()]
+      if (cachedImage) setFormImageUrl(cachedImage)
+      setIsSearching(true)
+      requestTimeout = setTimeout(() => {
+        setSearchError(true)
+        setIsSearching(false)
+        controller.abort()
+      }, 10_000)
+
+      try {
+        const response = await fetch(
+          `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=5`,
+          { signal: controller.signal },
+        )
+        if (response.ok) {
+          const data = await response.json()
+          if (controller.signal.aborted) return
+          setSearchResults(data.data || [])
+          setShowSearchResults(true)
+          setSearchEmpty(!data.data?.length)
+        } else if (!controller.signal.aborted) setSearchError(true)
+      } catch {
+        if (!controller.signal.aborted) setSearchError(true)
+      } finally {
+        clearTimeout(requestTimeout)
+        if (!controller.signal.aborted) setIsSearching(false)
       }
     }, 500)
-    return () => clearTimeout(timer)
-  }, [formTitle, formType, editingAnime, searchAnime])
+    return () => {
+      clearTimeout(timer)
+      clearTimeout(requestTimeout)
+      controller.abort()
+    }
+  }, [formTitle, formType, editingAnime, isAddDialogOpen, imageCache, selectedSearchTitle, searchAttempt])
 
   const selectSearchResult = (anime: JikanAnime) => {
+    setSelectedSearchTitle(anime.title)
     setFormTitle(anime.title)
-    if (anime.images?.jpg?.large_image_url) {
-      setFormImageUrl(anime.images.jpg.large_image_url)
+    const imageUrl = anime.images?.jpg?.large_image_url || ""
+    setFormImageUrl(imageUrl)
+    if (imageUrl) {
       // Cache the image URL
       setImageCache(prev => ({
         ...prev,
-        [anime.title.toLowerCase()]: anime.images.jpg.large_image_url
+        [anime.title.toLowerCase().trim()]: imageUrl
       }))
     }
-    if (anime.episodes) {
-      setFormTotalEpisodes(anime.episodes.toString())
-    }
-    if (anime.score) {
-      setFormRating(anime.score.toString())
-    }
+    setFormTotalEpisodes(anime.episodes?.toString() ?? "")
+    setFormRating(anime.score?.toString() ?? "")
     setShowSearchResults(false)
   }
 
   const resetForm = useCallback(() => {
+    setFormError(false)
+    setSelectedSearchTitle(null)
     setFormTitle("")
     setFormTotalEpisodes("")
     setFormCurrentEpisode("0")
@@ -289,6 +305,8 @@ export function AnimeTracker() {
   }, [])
 
   const openEditDialog = (anime: Anime) => {
+    saveCommitted.current = false
+    setFormError(false)
     setEditingAnime(anime)
     setFormTitle(anime.title)
     setFormTotalEpisodes(anime.totalEpisodes?.toString() || "")
@@ -302,12 +320,20 @@ export function AnimeTracker() {
   }
 
   const handleSave = () => {
-    if (!formTitle.trim()) return
+    if (saveCommitted.current || !formTitle.trim()) return
 
     const now = Date.now()
-    const totalEps = formTotalEpisodes ? parseInt(formTotalEpisodes) : null
-    const currentEp = parseInt(formCurrentEpisode) || 0
+    const totalEps = formTotalEpisodes ? Number(formTotalEpisodes) : null
+    const currentEp = Number(formCurrentEpisode)
+    const rating = formRating ? Number(formRating) : null
+    if (!Number.isInteger(currentEp) || currentEp < 0 ||
+        (totalEps !== null && (!Number.isInteger(totalEps) || totalEps < 1 || currentEp > totalEps)) ||
+        (rating !== null && (!Number.isFinite(rating) || rating < 0 || rating > 10))) {
+      setFormError(true)
+      return
+    }
 
+    saveCommitted.current = true
     if (editingAnime) {
       // Update existing
       setAnimeList(list => list.map(a => 
@@ -319,7 +345,7 @@ export function AnimeTracker() {
               currentEpisode: currentEp,
               status: formStatus,
               type: formType,
-              rating: formRating ? parseFloat(formRating) : null,
+              rating,
               notes: formNotes,
               imageUrl: formImageUrl,
               updatedAt: now,
@@ -335,7 +361,7 @@ export function AnimeTracker() {
         currentEpisode: currentEp,
         status: formStatus,
         type: formType,
-        rating: formRating ? parseFloat(formRating) : null,
+        rating,
         notes: formNotes,
         imageUrl: formImageUrl,
         addedAt: now,
@@ -355,6 +381,7 @@ export function AnimeTracker() {
   const incrementEpisode = (id: string) => {
     setAnimeList(list => list.map(a => {
       if (a.id !== id) return a
+      if (a.totalEpisodes !== null && a.currentEpisode >= a.totalEpisodes) return a
       const newEp = a.currentEpisode + 1
       const isCompleted = a.totalEpisodes && newEp >= a.totalEpisodes
       return {
@@ -381,11 +408,11 @@ export function AnimeTracker() {
 
   const getStatusColor = (status: AnimeStatus) => {
     switch (status) {
-      case "watching": return "bg-blue-500"
-      case "completed": return "bg-green-500"
-      case "planned": return "bg-yellow-500"
-      case "paused": return "bg-orange-500"
-      case "dropped": return "bg-red-500"
+      case "watching": return "bg-blue-700"
+      case "completed": return "bg-green-700"
+      case "planned": return "bg-yellow-700"
+      case "paused": return "bg-orange-700"
+      case "dropped": return "bg-red-700"
     }
   }
 
@@ -425,6 +452,7 @@ export function AnimeTracker() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 sm:p-4">
       <div className="mx-auto max-w-6xl">
+        {storageError && <InlineNotice className="mb-4">{t(storageError)} <Button size="sm" variant="outline" className="mt-2" onClick={() => storageError === "storageReadError" ? window.location.reload() : setStorageAttempt(attempt => attempt + 1)}>{t("retry")}</Button></InlineNotice>}
         <GameHeader
           layout="tool"
           homeIcon="back"
@@ -438,11 +466,12 @@ export function AnimeTracker() {
           descriptionClassName="hidden text-sm text-slate-400 sm:block"
           actions={
               <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+                if (open) saveCommitted.current = false
                 setIsAddDialogOpen(open)
                 if (!open) resetForm()
               }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1 px-2 sm:gap-2 sm:px-4">
+                  <Button size="sm" aria-label={t("addAnime")} className="gap-1 px-2 sm:gap-2 sm:px-4">
                     <Plus className="h-4 w-4" />
                     <span className="hidden sm:inline">{t("addAnime")}</span>
                   </Button>
@@ -457,14 +486,18 @@ export function AnimeTracker() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
+                    {formError && <InlineNotice>{t("animeFormError")}</InlineNotice>}
 {/* Title with Search */}
-                                    <div className="relative grid gap-2">
+                                    <div className="relative grid gap-2" onBlur={(event) => {
+                                      if (!event.currentTarget.contains(event.relatedTarget)) setShowSearchResults(false)
+                                    }}>
                                       <Label htmlFor="title">{t("animeTitle")} *</Label>
                                       <div className="relative">
                                         <Input
                                           id="title"
                                           value={formTitle}
                                           onChange={(e) => {
+                                            setSelectedSearchTitle(null)
                                             setFormTitle(e.target.value)
                                             if (e.target.value.length >= 2 && formType === "anime") {
                                               setShowSearchResults(true)
@@ -474,10 +507,6 @@ export function AnimeTracker() {
                                             if (searchResults.length > 0 && formType === "anime") {
                                               setShowSearchResults(true)
                                             }
-                                          }}
-                                          onBlur={() => {
-                                            // Delay hiding to allow click on results
-                                            setTimeout(() => setShowSearchResults(false), 200)
                                           }}
                                           placeholder={t("animeTitlePlaceholder")}
                                           className="border-slate-600 bg-slate-700 pr-10"
@@ -489,6 +518,8 @@ export function AnimeTracker() {
                                           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                                         )}
                                       </div>
+                                      {searchError && <InlineNotice>{t("animeSearchError")} <Button size="sm" variant="outline" className="mt-2" onClick={() => setSearchAttempt(attempt => attempt + 1)}>{t("retry")}</Button></InlineNotice>}
+                                      {searchEmpty && <p role="status" className="text-sm text-slate-300">{t("animeSearchEmpty")}</p>}
                                       {/* Search Results Dropdown */}
                                       {showSearchResults && searchResults.length > 0 && (
                                         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-md border border-slate-600 bg-slate-700 shadow-lg">
@@ -498,8 +529,8 @@ export function AnimeTracker() {
                                               type="button"
                                               onMouseDown={(e) => {
                                                 e.preventDefault()
-                                                selectSearchResult(anime)
                                               }}
+                                              onClick={() => selectSearchResult(anime)}
                                               className="flex w-full items-center gap-3 p-2 text-left hover:bg-slate-600"
                                             >
                                               {anime.images?.jpg?.image_url ? (
@@ -532,7 +563,7 @@ export function AnimeTracker() {
                       <div className="grid gap-2">
                         <Label htmlFor="type">{t("animeType")}</Label>
                         <Select value={formType} onValueChange={(v) => setFormType(v as "anime" | "drama" | "movie")}>
-                          <SelectTrigger className="border-slate-600 bg-slate-700">
+                          <SelectTrigger id="type" className="border-slate-600 bg-slate-700">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-slate-600 bg-slate-700">
@@ -546,7 +577,7 @@ export function AnimeTracker() {
                       <div className="grid gap-2">
                         <Label htmlFor="status">{t("animeStatus")}</Label>
                         <Select value={formStatus} onValueChange={(v) => setFormStatus(v as AnimeStatus)}>
-                          <SelectTrigger className="border-slate-600 bg-slate-700">
+                          <SelectTrigger id="status" className="border-slate-600 bg-slate-700">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-slate-600 bg-slate-700">
@@ -670,35 +701,35 @@ export function AnimeTracker() {
               </TabsTrigger>
               <TabsTrigger 
                 value="watching" 
-                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-blue-500 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
+                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-blue-500 data-[state=active]:bg-blue-700 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 <Play className="mr-1 h-3 w-3" />
                 {t("statusWatching")} ({statusCounts.watching})
               </TabsTrigger>
               <TabsTrigger 
                 value="planned" 
-                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-500 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
+                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-700 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 <Clock className="mr-1 h-3 w-3" />
                 {t("statusPlanned")} ({statusCounts.planned})
               </TabsTrigger>
               <TabsTrigger 
                 value="completed" 
-                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-green-500 data-[state=active]:bg-green-500 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
+                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-green-500 data-[state=active]:bg-green-700 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 <CheckCircle2 className="mr-1 h-3 w-3" />
                 {t("statusCompleted")} ({statusCounts.completed})
               </TabsTrigger>
               <TabsTrigger 
                 value="paused" 
-                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-orange-500 data-[state=active]:bg-orange-500 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
+                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-orange-500 data-[state=active]:bg-orange-700 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 <Pause className="mr-1 h-3 w-3" />
                 {t("statusPaused")} ({statusCounts.paused})
               </TabsTrigger>
               <TabsTrigger 
                 value="dropped" 
-                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-red-500 data-[state=active]:bg-red-500 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
+                className="whitespace-nowrap rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs data-[state=active]:border-red-500 data-[state=active]:bg-red-700 data-[state=active]:text-white sm:px-4 sm:py-2 sm:text-sm"
               >
                 <Trash2 className="mr-1 h-3 w-3" />
                 {t("statusDropped")} ({statusCounts.dropped})
@@ -711,7 +742,7 @@ export function AnimeTracker() {
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 sm:py-16">
                 <Tv className="mb-4 h-12 w-12 opacity-50 sm:h-16 sm:w-16" />
                 <p className="mb-4 text-base sm:text-lg">{t("noAnime")}</p>
-                <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                <Button onClick={() => { saveCommitted.current = false; setIsAddDialogOpen(true) }} className="gap-2">
                   <Plus className="h-4 w-4" />
                   {t("addFirstAnime")}
                 </Button>
@@ -766,8 +797,8 @@ export function AnimeTracker() {
                             </div>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-slate-400 sm:h-8 sm:w-8">
-                                  <MoreVertical className="h-4 w-4" />
+                                <Button variant="ghost" size="icon" aria-label={`${t("animeActions")}: ${anime.title}`} className="h-9 w-9 flex-shrink-0 text-slate-400">
+                                  <MoreVertical className="h-4 w-4" aria-hidden="true" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent className="border-slate-600 bg-slate-700">
@@ -820,10 +851,11 @@ export function AnimeTracker() {
                               variant="outline"
                               size="sm"
                               onClick={() => decrementEpisode(anime.id)}
+                              aria-label={`${t("decreaseEpisode")}: ${anime.title}`}
                               disabled={anime.currentEpisode === 0}
-                              className="h-7 w-7 border-slate-600 bg-slate-700 p-0 text-white hover:bg-slate-600 sm:h-8 sm:w-8"
+                              className="h-9 w-9 border-slate-600 bg-slate-700 p-0 text-white hover:bg-slate-600"
                             >
-                              <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <Minus className="h-4 w-4" aria-hidden="true" />
                             </Button>
                             <span className="text-sm font-bold text-white sm:text-lg">
                               {t("episode")} {anime.currentEpisode}
@@ -832,10 +864,11 @@ export function AnimeTracker() {
                               variant="outline"
                               size="sm"
                               onClick={() => incrementEpisode(anime.id)}
+                              aria-label={`${t("increaseEpisode")}: ${anime.title}`}
                               disabled={anime.totalEpisodes !== null && anime.currentEpisode >= anime.totalEpisodes}
-                              className="h-7 w-7 border-slate-600 bg-slate-700 p-0 text-white hover:bg-slate-600 sm:h-8 sm:w-8"
+                              className="h-9 w-9 border-slate-600 bg-slate-700 p-0 text-white hover:bg-slate-600"
                             >
-                              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <Plus className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </div>
 

@@ -87,6 +87,7 @@ export function ReversiGame() {
   const [gameOver, setGameOver] = useState(false)
   const [winner, setWinner] = useState<"black" | "white" | "tie" | null>(null)
   const [passCount, setPassCount] = useState(0)
+  const [passedPlayer, setPassedPlayer] = useState<"black" | "white" | null>(null)
 
   useEffect(() => {
     const moves = getValidMoves(board, currentPlayer)
@@ -104,6 +105,7 @@ export function ReversiGame() {
         else setWinner("tie")
       } else {
         // Pass turn
+        setPassedPlayer(currentPlayer)
         setCurrentPlayer(currentPlayer === "black" ? "white" : "black")
         setPassCount(p => p + 1)
       }
@@ -119,6 +121,7 @@ export function ReversiGame() {
     setGameOver(false)
     setWinner(null)
     setPassCount(0)
+    setPassedPlayer(null)
   }, [])
 
   const handleCellClick = useCallback((row: number, col: number) => {
@@ -133,6 +136,7 @@ export function ReversiGame() {
       newBoard[r][c] = currentPlayer
     }
     setBoard(newBoard)
+    setPassedPlayer(null)
     setCurrentPlayer(currentPlayer === "black" ? "white" : "black")
   }, [board, currentPlayer, gameOver])
 
@@ -156,19 +160,19 @@ export function ReversiGame() {
         <Card className="border-green-600 bg-green-800/50 px-4 py-2" role="status" aria-live="polite">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className={`flex h-6 w-6 items-center justify-center rounded-full ${currentPlayer === "black" ? "ring-2 ring-yellow-400" : ""} bg-slate-900`}>
+              <div className={`flex h-6 w-6 items-center justify-center rounded-full ${!gameOver && currentPlayer === "black" ? "ring-2 ring-yellow-400" : ""} bg-slate-900`}>
                 <span className="text-xs font-bold text-white">{blackCount}</span>
               </div>
-              <span className={`text-sm ${currentPlayer === "black" ? "text-yellow-300" : "text-green-200/50"}`}>
+              <span className={`text-sm ${gameOver ? "text-green-100" : currentPlayer === "black" ? "text-yellow-300" : "text-green-200/50"}`}>
                 {t("blackStone")}
               </span>
             </div>
             <div className="h-4 w-px bg-green-600" />
             <div className="flex items-center gap-2">
-              <div className={`flex h-6 w-6 items-center justify-center rounded-full ${currentPlayer === "white" ? "ring-2 ring-yellow-400" : ""} bg-white`}>
+              <div className={`flex h-6 w-6 items-center justify-center rounded-full ${!gameOver && currentPlayer === "white" ? "ring-2 ring-yellow-400" : ""} bg-white`}>
                 <span className="text-xs font-bold text-slate-900">{whiteCount}</span>
               </div>
-              <span className={`text-sm ${currentPlayer === "white" ? "text-yellow-300" : "text-green-200/50"}`}>
+              <span className={`text-sm ${gameOver ? "text-green-100" : currentPlayer === "white" ? "text-yellow-300" : "text-green-200/50"}`}>
                 {t("whiteStone")}
               </span>
             </div>
@@ -176,7 +180,7 @@ export function ReversiGame() {
         </Card>
 
         {gameOver && (
-          <div className="rounded-lg bg-yellow-500/20 px-4 py-2 text-lg font-bold text-yellow-300" role="status" aria-live="assertive">
+          <div className="rounded-lg bg-green-950 px-4 py-2 text-lg font-bold text-yellow-200" role="status" aria-live="assertive">
             {winner === "tie" 
               ? t("tie") 
               : winner === "black" 
@@ -184,6 +188,12 @@ export function ReversiGame() {
                 : t("whiteWinsGo")
             }
           </div>
+        )}
+
+        {passedPlayer && !gameOver && (
+          <p role="status" className="max-w-md text-center text-sm text-green-100">
+            {t(passedPlayer === "black" ? "blackStone" : "whiteStone")}: {t("turnPassed")}
+          </p>
         )}
 
         {/* Game board */}

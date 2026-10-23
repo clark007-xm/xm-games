@@ -1,10 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useReducer, useRef } from "react"
+import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
+import { shouldIgnoreGameKey } from "@/lib/game-input"
+import { InlineNotice } from "@/components/inline-notice"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react"
 import {
   createInitialSnakeState,
@@ -17,6 +19,8 @@ export function SnakeGame() {
   const { t } = useLocale()
   const [game, dispatch] = useReducer(snakeReducer, undefined, createInitialSnakeState)
   const persistedHighScoreRef = useRef<number | null>(null)
+  const [storageUnavailable, setStorageUnavailable] = useState(false)
+  const [round, setRound] = useState(0)
   const { food, highScore, phase, score, snake, speed } = game
   const isPlaying = phase === "playing"
   const isPaused = phase === "paused"
@@ -25,9 +29,14 @@ export function SnakeGame() {
 
   // Load high score from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("snakeHighScore")
-    const parsed = saved ? Number.parseInt(saved, 10) : 0
-    const highScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+    let highScore = 0
+    try {
+      const saved = localStorage.getItem("snakeHighScore")
+      const parsed = saved ? Number.parseInt(saved, 10) : 0
+      highScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+    } catch {
+      setStorageUnavailable(true)
+    }
 
     persistedHighScoreRef.current = highScore
     dispatch({ type: "hydrateHighScore", highScore })
@@ -42,20 +51,29 @@ export function SnakeGame() {
       return
     }
 
-    localStorage.setItem("snakeHighScore", highScore.toString())
-    persistedHighScoreRef.current = highScore
+    try {
+      localStorage.setItem("snakeHighScore", highScore.toString())
+      persistedHighScoreRef.current = highScore
+      setStorageUnavailable(false)
+    } catch {
+      setStorageUnavailable(true)
+    }
   }, [highScore])
 
   // Game loop
   useEffect(() => {
     if (!isPlaying) return
+    let active = true
 
     const gameLoop = window.setInterval(() => {
-      dispatch({ type: "tick", foodRoll: Math.random() })
+      if (active) dispatch({ type: "tick", foodRoll: Math.random() })
     }, speed)
 
-    return () => window.clearInterval(gameLoop)
-  }, [isPlaying, speed])
+    return () => {
+      active = false
+      window.clearInterval(gameLoop)
+    }
+  }, [isPlaying, speed, round])
 
   const changeDirection = useCallback((newDir: Position) => {
     dispatch({ type: "changeDirection", direction: newDir })
@@ -64,7 +82,7 @@ export function SnakeGame() {
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isPlaying) return
+      if (!isPlaying || shouldIgnoreGameKey(e)) return
 
       switch (e.key) {
         case "ArrowUp":
@@ -99,6 +117,7 @@ export function SnakeGame() {
   }, [isPlaying, changeDirection])
 
   const startGame = () => {
+    setRound(value => value + 1)
     dispatch({ type: "start", foodRoll: Math.random() })
   }
 
@@ -116,6 +135,7 @@ export function SnakeGame() {
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         <h1 className="text-3xl font-bold text-white">{t("snake")}</h1>
+        {storageUnavailable && <InlineNotice className="max-w-md">{t("highScoreStorageError")}</InlineNotice>}
 
         {/* Score Display */}
         <div className="flex gap-8 text-center" role="status" aria-live="polite">
@@ -130,7 +150,7 @@ export function SnakeGame() {
         </div>
 
         {/* Game Board */}
-        <Card className="border-slate-700 bg-slate-800/50">
+        <Card className="w-full max-w-[365px] border-slate-700 bg-slate-800/50">
           <CardContent className="p-2">
             <div
               className="grid gap-[1px] rounded bg-slate-900 p-1"
@@ -158,7 +178,7 @@ export function SnakeGame() {
                       return (
                         <div
                           key={`${y}-${x}`}
-                          className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${cellClass}`}
+                          className={`aspect-square min-w-0 ${cellClass}`}
                           aria-hidden="true"
                         />
                       )
@@ -202,7 +222,7 @@ export function SnakeGame() {
               {t("resume")}
             </Button>
           )}
-          {(isGameOver || isWon || (isPaused && score > 0)) && (
+          {phase !== "idle" && (
             <Button onClick={startGame} variant="outline" className="gap-2">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               {t("restart")}
@@ -211,7 +231,7 @@ export function SnakeGame() {
         </div>
 
         {/* Mobile Controls */}
-        <div className="flex flex-col items-center gap-2 md:hidden">
+        <div className="flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex">
           <Button
             variant="outline"
             size="icon"
@@ -259,8 +279,8 @@ export function SnakeGame() {
 
         {/* Instructions */}
         <div className="text-center text-sm text-slate-500">
-          <span className="hidden md:inline">{t("snakeControls")}</span>
-          <span className="md:hidden">{t("snakeControlsMobile")}</span>
+          <span className="hidden md:inline [@media(pointer:coarse)]:hidden">{t("snakeControls")}</span>
+          <span className="md:hidden [@media(pointer:coarse)]:inline">{t("snakeControlsMobile")}</span>
         </div>
       </main>
     </div>

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
+import { InlineNotice } from "@/components/inline-notice"
 import { GameRulesDialog } from "@/components/game-rules-dialog"
 import {
   generateSudoku,
@@ -27,22 +28,37 @@ export function SudokuGame() {
   const [errors, setErrors] = useState<boolean[][]>(Array(9).fill(null).map(() => Array(9).fill(false)))
   const [completed, setCompleted] = useState(false)
   const [hints, setHints] = useState(3)
+  const [generationError, setGenerationError] = useState(false)
   const cellRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const liveBoard = useRef<SudokuBoard>([])
+  const hintsRemaining = useRef(3)
 
   const initGame = useCallback(() => {
-    const { puzzle: newPuzzle, solution: newSolution } = generateSudoku(difficulty)
-    setSolution(newSolution)
-    setBoard(newPuzzle.map(row => [...row]))
-    setInitialCells(newPuzzle.map(row => row.map(cell => cell !== null)))
-    const firstEditable = newPuzzle
-      .flatMap((row, rowIndex) =>
-        row.map((cell, colIndex) => cell === null ? [rowIndex, colIndex] as [number, number] : null),
-      )
-      .find((position): position is [number, number] => position !== null)
-    setSelectedCell(firstEditable ?? null)
-    setErrors(Array(9).fill(null).map(() => Array(9).fill(false)))
+    setGenerationError(false)
+    setSelectedCell(null)
     setCompleted(false)
-    setHints(3)
+    setErrors(Array(9).fill(null).map(() => Array(9).fill(false)))
+    try {
+      const { puzzle: newPuzzle, solution: newSolution } = generateSudoku(difficulty)
+      setSolution(newSolution)
+      liveBoard.current = newPuzzle.map(row => [...row])
+      setBoard(liveBoard.current)
+      setInitialCells(newPuzzle.map(row => row.map(cell => cell !== null)))
+      const firstEditable = newPuzzle
+        .flatMap((row, rowIndex) =>
+          row.map((cell, colIndex) => cell === null ? [rowIndex, colIndex] as [number, number] : null),
+        )
+        .find((position): position is [number, number] => position !== null)
+      setSelectedCell(firstEditable ?? null)
+      setHints(3)
+      hintsRemaining.current = 3
+    } catch {
+      liveBoard.current = []
+      setBoard([])
+      setSolution([])
+      setInitialCells([])
+      setGenerationError(true)
+    }
   }, [difficulty])
 
   useEffect(() => {
@@ -63,8 +79,9 @@ export function SudokuGame() {
     const [row, col] = activeCell
     if (initialCells[row][col]) return
 
-    const newBoard = board.map(r => [...r])
+    const newBoard = liveBoard.current.map(r => [...r])
     newBoard[row][col] = num
+    liveBoard.current = newBoard
     setBoard(newBoard)
 
     // Check for errors
@@ -86,7 +103,7 @@ export function SudokuGame() {
     if (isComplete) {
       setCompleted(true)
     }
-  }, [selectedCell, board, solution, initialCells, completed])
+  }, [selectedCell, solution, initialCells, completed])
 
   const focusCell = useCallback((row: number, col: number) => {
     setSelectedCell([row, col])
@@ -124,14 +141,16 @@ export function SudokuGame() {
   }, [focusCell, handleNumberInput])
 
   const useHint = () => {
-    if (hints <= 0 || !selectedCell || completed) return
+    if (hintsRemaining.current <= 0 || !selectedCell || completed) return
     const [row, col] = selectedCell
-    if (initialCells[row][col]) return
+    if (initialCells[row][col] || liveBoard.current[row][col] === solution[row][col]) return
     
-    const newBoard = board.map(r => [...r])
+    const newBoard = liveBoard.current.map(r => [...r])
     newBoard[row][col] = solution[row][col]
+    liveBoard.current = newBoard
     setBoard(newBoard)
-    setHints(h => h - 1)
+    hintsRemaining.current -= 1
+    setHints(hintsRemaining.current)
     
     // Clear error for this cell
     const newErrors = errors.map(r => [...r])
@@ -172,6 +191,8 @@ export function SudokuGame() {
     && !completed
     && !initialCells[selectedCell[0]]?.[selectedCell[1]],
   )
+  const selectedIsCorrect = Boolean(selectedCell
+    && board[selectedCell[0]]?.[selectedCell[1]] === solution[selectedCell[0]]?.[selectedCell[1]])
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-4">
@@ -203,6 +224,8 @@ export function SudokuGame() {
         </div>
 
         {/* Game status */}
+        {generationError && <InlineNotice className="max-w-md">{t("sudokuGenerationError")}</InlineNotice>}
+        {errors.some(row => row.some(Boolean)) && <InlineNotice id="sudoku-input-error" className="max-w-md">{t("sudokuInputError")}</InlineNotice>}
         {completed && (
           <div className="rounded-lg bg-green-500/20 px-4 py-2 text-lg font-bold text-green-300" role="status" aria-live="assertive">
             {t("youWin")}
@@ -210,7 +233,7 @@ export function SudokuGame() {
         )}
 
         {/* Game board */}
-        <div className="rounded-lg border-2 border-blue-300 bg-white p-1">
+        {board.length > 0 && <div className="rounded-lg border-2 border-blue-300 bg-white p-1">
           <div className="grid grid-cols-9" role="group" aria-label={t("sudoku")}>
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => (
@@ -225,6 +248,8 @@ export function SudokuGame() {
                   tabIndex={selectedCell?.[0] === rowIndex && selectedCell?.[1] === colIndex ? 0 : -1}
                   aria-pressed={selectedCell?.[0] === rowIndex && selectedCell?.[1] === colIndex}
                   aria-disabled={completed}
+                  disabled={completed}
+                  aria-describedby={errors[rowIndex]?.[colIndex] ? "sudoku-input-error" : undefined}
                   aria-label={`${cellText.row} ${rowIndex + 1}, ${cellText.column} ${colIndex + 1}, ${cell ?? cellText.empty}${cell !== null ? `, ${initialCells[rowIndex]?.[colIndex] ? cellText.given : cellText.entered}` : ""}${errors[rowIndex]?.[colIndex] ? `, ${cellText.error}` : ""}`}
                   className={`
                     flex h-9 w-9 items-center justify-center text-lg font-semibold transition-colors
@@ -240,7 +265,7 @@ export function SudokuGame() {
               ))
             )}
           </div>
-        </div>
+        </div>}
 
         {/* Number input buttons */}
         <div className="flex flex-wrap justify-center gap-2" role="toolbar" aria-label={t("sudoku")}>
@@ -279,7 +304,7 @@ export function SudokuGame() {
           <Button
             onClick={useHint}
             variant="outline"
-            disabled={hints <= 0 || !canEditSelected}
+            disabled={hints <= 0 || !canEditSelected || selectedIsCorrect}
             className="border-blue-500 bg-blue-700/50 text-blue-100 hover:bg-blue-600 disabled:opacity-50"
           >
             <Lightbulb className="mr-2 h-4 w-4" aria-hidden="true" />

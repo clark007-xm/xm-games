@@ -211,7 +211,7 @@ export function MinesweeperGame() {
 
         {/* Game stats */}
         <Card
-          className="flex items-center gap-6 border-slate-700 bg-slate-800/50 px-4 py-2"
+          className="flex flex-row items-center gap-6 border-slate-700 bg-slate-800/50 px-4 py-2"
           aria-label={`${t("minesweeper")}: ${mines - flagCount}; ${formatTime(timer)}; ${flagCount}`}
         >
           <div className="flex items-center gap-2">
@@ -230,7 +230,7 @@ export function MinesweeperGame() {
         {/* Game status */}
         {gameStatus !== "playing" && (
           <div role="status" aria-live="polite" className={`rounded-lg px-4 py-2 text-lg font-bold ${
-            gameStatus === "won" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+            gameStatus === "won" ? "bg-green-500/20 text-green-400" : "bg-red-950 text-red-100"
           }`}>
             {gameStatus === "won" ? t("youWin") : t("gameOver")}
           </div>
@@ -244,6 +244,7 @@ export function MinesweeperGame() {
               variant={inputMode === "reveal" ? "default" : "outline"}
               aria-pressed={inputMode === "reveal"}
               onClick={() => setInputMode("reveal")}
+              disabled={gameStatus !== "playing"}
               className={inputMode === "reveal" ? "bg-slate-600" : "border-slate-600 bg-transparent text-slate-300 hover:bg-slate-700"}
             >
               <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -255,6 +256,7 @@ export function MinesweeperGame() {
               variant={inputMode === "flag" ? "default" : "outline"}
               aria-pressed={inputMode === "flag"}
               onClick={() => setInputMode("flag")}
+              disabled={gameStatus !== "playing"}
               className={inputMode === "flag" ? "bg-slate-600" : "border-slate-600 bg-transparent text-slate-300 hover:bg-slate-700"}
             >
               <Flag className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -270,11 +272,11 @@ export function MinesweeperGame() {
           style={{ maxWidth: "100%", maxHeight: "60vh" }}
         >
           <div 
-            className="grid gap-px"
+            className={`grid w-max gap-px ${difficulty === "hard" ? "[--cell-size:1.25rem] sm:[--cell-size:1.5rem]" : "[--cell-size:1.75rem] sm:[--cell-size:2rem]"}`}
             role="group"
             aria-label={`${t("minesweeper")}, ${rows} × ${cols}`}
             style={{ 
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${cols}, var(--cell-size))`,
             }}
           >
             {board.map((row, rowIndex) =>
@@ -287,8 +289,8 @@ export function MinesweeperGame() {
                   aria-label={getCellLabel(rowIndex, colIndex)}
                   aria-pressed={cell.isFlagged}
                   className={`
-                    flex items-center justify-center font-bold transition-all
-                    ${difficulty === "hard" ? "h-5 w-5 text-xs sm:h-6 sm:w-6" : "h-7 w-7 text-sm sm:h-8 sm:w-8"}
+                    flex h-[var(--cell-size)] w-[var(--cell-size)] items-center justify-center font-bold transition-all
+                    ${difficulty === "hard" ? "text-xs" : "text-sm"}
                     ${cell.isRevealed
                       ? cell.isMine
                         ? "bg-red-500"

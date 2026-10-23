@@ -49,7 +49,7 @@ function HomeLink({
         <Icon className="h-4 w-4" aria-hidden="true" />
         <span
           className={cn(
-            labelMode === "desktop" && "hidden sm:inline",
+            labelMode === "desktop" && "sr-only sm:not-sr-only",
             labelMode === "sr-only" && "sr-only",
           )}
         >
@@ -82,7 +82,7 @@ export function GameHeader({
     />
   )
   const languageAndActions = (
-    <div className="flex items-center gap-1 sm:gap-2">
+    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
       <LanguageSwitcher />
       {actions}
     </div>
@@ -105,8 +105,8 @@ export function GameHeader({
 
   if (layout === "tool") {
     return (
-      <header className={cn("flex items-center justify-between gap-2", className)}>
-        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+      <header className={cn("flex flex-wrap items-center justify-between gap-2", className)}>
+        <div className="flex min-w-0 max-w-full items-center gap-2 sm:gap-4">
           {home}
           <div className="min-w-0">
             {title && <h1 className={titleClassName}>{title}</h1>}
@@ -122,12 +122,12 @@ export function GameHeader({
     return (
       <header
         className={cn(
-          "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2",
+          "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
           className,
         )}
       >
         <div className="justify-self-start">{home}</div>
-        {title && <h1 className={titleClassName}>{title}</h1>}
+        {title && <h1 className={cn("order-3 col-span-2 text-center sm:order-none sm:col-span-1", titleClassName)}>{title}</h1>}
         <div className="justify-self-end">{languageAndActions}</div>
       </header>
     )
