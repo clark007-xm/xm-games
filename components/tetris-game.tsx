@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
 import { shouldIgnoreGameKey } from "@/lib/game-input"
+import { usePageVisibility } from "@/lib/use-page-visibility"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown } from "lucide-react"
 import {
   BOARD_WIDTH,
@@ -43,6 +44,12 @@ export function TetrisGame() {
   )
   const { nextPiece, score, lines, level, phase } = state
   const [round, setRound] = useState(0)
+  const [backgroundPaused, setBackgroundPaused] = useState(false)
+  const { isVisible, isPageVisible } = usePageVisibility(() => {
+    if (phase === "playing") setBackgroundPaused(true)
+    // Queue the pause after any start/resume awaiting the same React commit.
+    dispatch({ type: "pause" })
+  })
 
   const randomPiece = useCallback(
     () => pickTetromino(Math.random()),
@@ -59,19 +66,19 @@ export function TetrisGame() {
   )
 
   useEffect(() => {
-    if (phase !== "playing") return
+    if (phase !== "playing" || !isVisible || !isPageVisible()) return
     let active = true
 
     const speed = Math.max(100, 1000 - (level - 1) * 100)
     const gameLoop = window.setInterval(() => {
-      if (active) dispatch({ type: "tick", nextPiece: randomPiece() })
+      if (active && isPageVisible()) dispatch({ type: "tick", nextPiece: randomPiece() })
     }, speed)
 
     return () => {
       active = false
       window.clearInterval(gameLoop)
     }
-  }, [level, phase, randomPiece, round])
+  }, [level, phase, randomPiece, round, isVisible, isPageVisible])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,6 +113,8 @@ export function TetrisGame() {
   }, [phase, movePiece, rotatePiece, hardDrop])
 
   const startGame = () => {
+    if (!isPageVisible()) return
+    setBackgroundPaused(false)
     setRound(value => value + 1)
     dispatch({
       type: "start",
@@ -132,6 +141,7 @@ export function TetrisGame() {
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         <h1 className="text-3xl font-bold text-white">{t("tetris")}</h1>
+        {backgroundPaused && <p role="status" className="max-w-md text-center text-sm text-slate-300">{t("backgroundPaused")}</p>}
 
         <div className="grid w-full max-w-[400px] grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
           {/* Game Board */}
@@ -224,7 +234,11 @@ export function TetrisGame() {
               )}
               {phase === "paused" && (
                 <Button
-                  onClick={() => dispatch({ type: "resume" })}
+                  onClick={() => {
+                    if (!isPageVisible()) return
+                    setBackgroundPaused(false)
+                    dispatch({ type: "resume" })
+                  }}
                   className="gap-2 bg-green-600 hover:bg-green-700"
                 >
                   <Play className="h-4 w-4" aria-hidden="true" />

@@ -10,6 +10,7 @@ import type { TranslationKey } from "@/lib/i18n"
 import { GameHeader } from "@/components/game-header"
 import { Plus, Trash2, Mic, MicOff, RotateCcw } from "lucide-react"
 import { parseBingoNumbers } from "@/features/bingo/number-parser"
+import { usePageVisibility } from "@/lib/use-page-visibility"
 
 const SPEECH_LANGUAGE = {
   zh: "zh-CN",
@@ -142,6 +143,7 @@ export function BingoCards() {
   const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
   const [inputError, setInputError] = useState<TranslationKey | null>(null)
   const [speechError, setSpeechError] = useState<TranslationKey | null>(null)
+  const [backgroundStopped, setBackgroundStopped] = useState(false)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const recognitionPhase = useRef<"idle" | "starting" | "listening" | "stopping">("idle")
   const shouldListenRef = useRef(false)
@@ -167,9 +169,15 @@ export function BingoCards() {
     }
   }, [clearRestartTimer])
 
+  const { isPageVisible } = usePageVisibility(() => {
+    if (shouldListenRef.current) setBackgroundStopped(true)
+    stopListening()
+    window.speechSynthesis?.cancel()
+  })
+
   // Speak "Bingo" announcement
   const speakBingo = useCallback((cardName: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return
+    if (!isPageVisible() || !window.speechSynthesis) return
 
     const langMap: Record<string, string> = {
       zh: "zh-CN",
@@ -189,7 +197,7 @@ export function BingoCards() {
     utterance.volume = 1
     // Let the browser queue every winner, including cards that win together.
     window.speechSynthesis.speak(utterance)
-  }, [locale])
+  }, [locale, isPageVisible])
 
   // Keep the active recognizer in sync without rebuilding its event handlers.
   useEffect(() => {
@@ -224,7 +232,7 @@ export function BingoCards() {
     recognitionPhase.current = "idle"
 
     const handleResult = (event: SpeechRecognitionEvent) => {
-      if (!mountedRef.current || !shouldListenRef.current ||
+      if (!isPageVisible() || !mountedRef.current || !shouldListenRef.current ||
           recognitionRef.current !== recognition || recognitionPhase.current !== "listening") return
       const transcripts: string[] = []
       for (let index = event.resultIndex; index < event.results.length; index++) {
@@ -243,7 +251,7 @@ export function BingoCards() {
     }
 
     const handleError = (event: SpeechRecognitionErrorEvent) => {
-      if (!mountedRef.current || !shouldListenRef.current || recognitionRef.current !== recognition ||
+      if (!isPageVisible() || !mountedRef.current || !shouldListenRef.current || recognitionRef.current !== recognition ||
           recognitionPhase.current === "stopping") return
       shouldListenRef.current = false
       clearRestartTimer()
@@ -257,12 +265,13 @@ export function BingoCards() {
       if (recognitionRef.current !== recognition) return
       recognitionPhase.current = "idle"
       clearRestartTimer()
-      if (!mountedRef.current || !shouldListenRef.current) return
+      if (!isPageVisible() || !mountedRef.current || !shouldListenRef.current) return
 
       restartTimerRef.current = setTimeout(() => {
         restartTimerRef.current = null
         if (
           !mountedRef.current ||
+          !isPageVisible() ||
           !shouldListenRef.current ||
           recognitionRef.current !== recognition
         ) {
@@ -307,13 +316,14 @@ export function BingoCards() {
         // The recognizer may already be inactive.
       }
     }
-  }, [clearRestartTimer])
+  }, [clearRestartTimer, isPageVisible])
 
   useEffect(() => {
     return () => window.speechSynthesis?.cancel()
   }, [])
 
   const toggleListening = useCallback(() => {
+    if (!isPageVisible()) return
     const recognition = recognitionRef.current
     if (!recognition) {
       console.warn("[bingo] Speech recognition not initialized")
@@ -326,6 +336,7 @@ export function BingoCards() {
     }
 
     shouldListenRef.current = true
+    setBackgroundStopped(false)
     setSpeechError(null)
     setIsListening(true)
     // An abort is asynchronous; wait for its end event before starting again.
@@ -342,7 +353,7 @@ export function BingoCards() {
       setIsListening(false)
       setSpeechError("speechUnavailable")
     }
-  }, [clearRestartTimer, locale, stopListening])
+  }, [clearRestartTimer, locale, stopListening, isPageVisible])
 
   const addCard = useCallback(() => {
     const newCard: BingoCard = {
@@ -371,6 +382,7 @@ export function BingoCards() {
   }, [inputNumber, drawnNumbers])
 
   const resetAll = useCallback(() => {
+    setBackgroundStopped(false)
     stopListening()
     window.speechSynthesis?.cancel()
     setDrawnNumbers(new Set())
@@ -502,6 +514,7 @@ export function BingoCards() {
 
             {inputError && <InlineNotice id="bingo-input-error" className="mt-3">{t(inputError)}</InlineNotice>}
             {speechError && <InlineNotice className="mt-3">{t(speechError)}</InlineNotice>}
+            {backgroundStopped && <p role="status" className="mt-3 text-sm text-slate-300">{t("speechBackgroundPaused")}</p>}
             {speechSupported === false && <p className="mt-3 text-sm text-slate-300">{t("speechUnsupported")}</p>}
 
             {/* Drawn Numbers Display */}

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Volume2, VolumeX, Play, Pause, RotateCcw } from "lucide-react"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
+import { usePageVisibility } from "@/lib/use-page-visibility"
 
 // 泰语数字发音映射
 const thaiNumbers: { [key: number]: string } = {
@@ -114,6 +115,14 @@ export function BingoGame() {
   const [isSoundEnabled, setIsSoundEnabled] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [backgroundPaused, setBackgroundPaused] = useState(false)
+  const { isVisible, isPageVisible } = usePageVisibility(() => {
+    if (isPlaying) setBackgroundPaused(true)
+    setIsPlaying(false)
+    if (autoTimerRef.current) clearInterval(autoTimerRef.current)
+    autoTimerRef.current = null
+    window.speechSynthesis?.cancel()
+  })
 
   // 所有可用数字 (1-75)
   const allNumbers = Array.from({ length: 75 }, (_, i) => i + 1)
@@ -121,7 +130,7 @@ export function BingoGame() {
 
   // 多语言语音播报
   const speakNumber = useCallback((number: number) => {
-    if (!isSoundEnabled) return
+    if (!isSoundEnabled || !isPageVisible()) return
     if (typeof window === "undefined" || !window.speechSynthesis) return
 
     // 取消之前的语音
@@ -153,10 +162,11 @@ export function BingoGame() {
     utterance.volume = 1
 
     window.speechSynthesis.speak(utterance)
-  }, [isSoundEnabled, locale])
+  }, [isSoundEnabled, locale, isPageVisible])
 
   // 抽取数字
   const drawNumber = useCallback(() => {
+    if (!isPageVisible()) return
     const remainingNumbers = Array.from({ length: 75 }, (_, i) => i + 1)
       .filter(number => !drawnNumbersRef.current.includes(number))
     if (remainingNumbers.length === 0) {
@@ -172,12 +182,12 @@ export function BingoGame() {
     setDrawnNumbers(drawnNumbersRef.current)
     if (remainingNumbers.length === 1) setIsPlaying(false)
     speakNumber(newNumber)
-  }, [speakNumber])
+  }, [speakNumber, isPageVisible])
 
   // 自动抽取逻辑
   useEffect(() => {
     let active = true
-    if (isAutoMode && isPlaying && remainingNumbers.length > 0) {
+    if (isAutoMode && isPlaying && isVisible && isPageVisible() && remainingNumbers.length > 0) {
       autoTimerRef.current = setInterval(() => {
         if (active) drawNumber()
       }, autoInterval * 1000)
@@ -188,8 +198,9 @@ export function BingoGame() {
       if (autoTimerRef.current) {
         clearInterval(autoTimerRef.current)
       }
+      autoTimerRef.current = null
     }
-  }, [isAutoMode, isPlaying, autoInterval, drawNumber, remainingNumbers.length])
+  }, [isAutoMode, isPlaying, autoInterval, drawNumber, remainingNumbers.length, isVisible, isPageVisible])
 
   useEffect(() => {
     return () => window.speechSynthesis?.cancel()
@@ -197,6 +208,7 @@ export function BingoGame() {
 
   // 重置游戏
   const resetGame = () => {
+    setBackgroundPaused(false)
     drawnNumbersRef.current = []
     setDrawnNumbers([])
     setCurrentNumber(null)
@@ -206,7 +218,8 @@ export function BingoGame() {
 
   // 开始/暂停自动抽取
   const toggleAutoPlay = () => {
-    if (remainingNumbers.length === 0) return
+    if (remainingNumbers.length === 0 || !isPageVisible()) return
+    setBackgroundPaused(false)
     setIsPlaying(playing => !playing)
   }
 
@@ -249,6 +262,8 @@ export function BingoGame() {
             </>
           }
         />
+
+        {backgroundPaused && <p role="status" className="mb-6 text-sm text-slate-300">{t("backgroundPaused")}</p>}
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* 当前抽到的数字 */}

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 
+vi.mock("@/lib/storage-lock", () => ({
+  runWithStorageLock: (_name: string, operation: () => void) => Promise.resolve(operation()),
+}))
+
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { translations } from "@/lib/i18n"

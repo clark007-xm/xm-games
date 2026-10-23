@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { translations } from "@/lib/i18n"
 import { AnimeTracker } from "./anime-tracker"
@@ -23,8 +23,26 @@ type PendingSearch = {
 }
 let requests: PendingSearch[]
 
+const storageKey = "xm-games-anime-tracker"
+const savedAnime = (id: string, currentEpisode = 0) => ({
+  id, title: `Series ${id}`, totalEpisodes: 12, currentEpisode, status: "watching", type: "drama",
+  rating: null, notes: "", imageUrl: "", addedAt: 1, updatedAt: 1,
+})
+
+function replaceStoredList(list: ReturnType<typeof savedAnime>[], notify = true) {
+  const value = JSON.stringify(list)
+  localStorage.setItem(storageKey, value)
+  if (notify) act(() => { window.dispatchEvent(new StorageEvent("storage", { key: storageKey, newValue: value, storageArea: localStorage })) })
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
+  Object.defineProperty(navigator, "locks", { configurable: true, value: {
+    request: vi.fn((_name: string, callback: () => void) => {
+      callback()
+      return Promise.resolve()
+    }),
+  } })
   requests = []
   // Deliberately allow aborted requests to finish to exercise the response guard.
   vi.stubGlobal("fetch", vi.fn((_url: string, options: RequestInit) => new Promise<Response>((resolve) => {
@@ -37,6 +55,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, "locks")
   localStorage.clear()
 })
 
@@ -114,6 +133,239 @@ describe("anime search selection", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole("button", { name: /Finished series/ })).toBeNull()
+  })
+})
+
+describe("anime saved data across page lifecycles", () => {
+  it.each(["Current Episode", "Total Episodes"])("rejects unsafe integer values in %s before saving a record that cannot reload", (label) => {
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Unsafe episode count" } })
+    fireEvent.change(screen.getByLabelText(label), { target: { value: "100000000000000000000" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.animeFormError)
+    expect(localStorage.getItem(storageKey)).toBeNull()
+  })
+
+  it("prevents episode increments from exceeding the largest safely stored integer", () => {
+    const original = [{ ...savedAnime("A", Number.MAX_SAFE_INTEGER), totalEpisodes: null }]
+    localStorage.setItem(storageKey, JSON.stringify(original))
+    render(<AnimeTracker />)
+    const increment = screen.getByRole("button", { name: `${translations.en.increaseEpisode}: Series A` }) as HTMLButtonElement
+    expect(increment.disabled).toBe(true)
+    fireEvent.click(increment)
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual(original)
+  })
+
+  it("loads saved entries without writing a snapshot back on mount", () => {
+    replaceStoredList([savedAnime("A")], false)
+    const write = vi.spyOn(Storage.prototype, "setItem")
+    render(<AnimeTracker />)
+    expect(screen.getByText("Series A")).toBeTruthy()
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it("reflects another tab's changes and deletion without writing them back", () => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    replaceStoredList([savedAnime("B", 4)])
+    expect(screen.queryByText("Series A")).toBeNull()
+    expect(screen.getByText("Series B")).toBeTruthy()
+    expect(screen.getByText("4 / 12")).toBeTruthy()
+    replaceStoredList([])
+    expect(screen.queryByText("Series B")).toBeNull()
+  })
+
+  it("merges an action against the latest stored records before the storage event arrives", () => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    replaceStoredList([savedAnime("A", 5), savedAnime("B")], false)
+    fireEvent.click(screen.getByRole("button", { name: `${translations.en.increaseEpisode}: Series A` }))
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([
+      expect.objectContaining({ id: "A", currentEpisode: 6 }), savedAnime("B"),
+    ])
+  })
+
+  it("adds a new record without resurrecting a record deleted in another tab", () => {
+    replaceStoredList([savedAnime("A")], false)
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "New series" } })
+    replaceStoredList([savedAnime("B")], false)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([
+      expect.objectContaining({ title: "New series" }), savedAnime("B"),
+    ])
+  })
+
+  it("deletes only the selected record and keeps newly saved records from another tab", () => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    replaceStoredList([savedAnime("A", 5), savedAnime("B")], false)
+    fireEvent.keyDown(screen.getByRole("button", { name: `${translations.en.animeActions}: Series A` }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }))
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([savedAnime("B")])
+  })
+
+  it("does not replace damaged data introduced while this page is open", () => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    localStorage.setItem(storageKey, "{broken")
+    fireEvent.click(screen.getByRole("button", { name: `${translations.en.increaseEpisode}: Series A` }))
+    expect(localStorage.getItem(storageKey)).toBe("{broken")
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.storageReadError)
+    fireEvent.click(screen.getByRole("button", { name: translations.en.retry }))
+    expect(localStorage.getItem(storageKey)).toBe("{broken")
+    replaceStoredList([savedAnime("A", 4), savedAnime("B")])
+    fireEvent.click(screen.getByRole("button", { name: translations.en.retry }))
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([
+      expect.objectContaining({ id: "A", currentEpisode: 5 }), savedAnime("B"),
+    ])
+  })
+
+  it.each([
+    [savedAnime("A", -1)],
+    [savedAnime("A", 13)],
+    [savedAnime("A"), savedAnime("A")],
+  ])("preserves invalid saved record data rather than enabling writes", (...records) => {
+    const original = JSON.stringify(records)
+    localStorage.setItem(storageKey, original)
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "New record" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.storageReadError)
+    expect(localStorage.getItem(storageKey)).toBe(original)
+    expect(screen.getByRole("dialog")).toBeTruthy()
+  })
+
+  it("serializes concurrent actions from two open trackers using the latest data", async () => {
+    // Model the actual asynchronous exclusive lock queue rather than a sync mock.
+    let tail = Promise.resolve()
+    vi.mocked(navigator.locks.request).mockImplementation((_name: string, callback: unknown) => {
+      const next = tail.then(() => (callback as () => void)())
+      tail = next.catch(() => {})
+      return next
+    })
+    replaceStoredList([savedAnime("A")], false)
+    const left = render(<AnimeTracker />)
+    const right = render(<AnimeTracker />)
+    const increment = `${translations.en.increaseEpisode}: Series A`
+    act(() => {
+      for (let i = 0; i < 4; i++) {
+        within(left.container).getByRole("button", { name: increment }).click()
+        within(right.container).getByRole("button", { name: increment }).click()
+      }
+    })
+    await act(async () => { await tail })
+    expect(JSON.parse(localStorage.getItem(storageKey)!)[0].currentEpisode).toBe(8)
+    expect(navigator.locks.request).toHaveBeenCalledTimes(8)
+  })
+
+  it("preserves a failed episode delta and rebases retry on another tab's changes", () => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Quota") })
+    fireEvent.click(screen.getByRole("button", { name: `${translations.en.increaseEpisode}: Series A` }))
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.storageWriteError)
+    write.mockRestore()
+    replaceStoredList([savedAnime("A", 5), savedAnime("B")])
+    fireEvent.click(screen.getByRole("button", { name: translations.en.retry }))
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([
+      expect.objectContaining({ id: "A", currentEpisode: 6 }), savedAnime("B"),
+    ])
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("retains the form after a failed save and retries with its latest draft", () => {
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Original draft" } })
+    const write = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Quota") })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.storageWriteError)
+    write.mockRestore()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Revised draft" } })
+    replaceStoredList([savedAnime("B")])
+    fireEvent.click(screen.getByRole("button", { name: translations.en.retry }))
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([
+      expect.objectContaining({ title: "Revised draft" }), savedAnime("B"),
+    ])
+  })
+
+  it("keeps a submitted form stable while its asynchronous storage lock is pending", async () => {
+    let release!: () => void
+    vi.mocked(navigator.locks.request).mockImplementation((_name: string, callback: unknown) => new Promise<void>(resolve => {
+      release = () => { (callback as () => void)(); resolve() }
+    }))
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Pending save" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText(/^Title/).closest("fieldset")?.disabled).toBe(true)
+    const refresh = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(refresh)
+    expect(refresh.defaultPrevented).toBe(true)
+    await act(async () => { release() })
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(JSON.parse(localStorage.getItem(storageKey)!)[0].title).toBe("Pending save")
+  })
+
+  it("keeps the draft and original records when both safe storage lock mechanisms are unavailable", async () => {
+    Reflect.deleteProperty(navigator, "locks")
+    replaceStoredList([savedAnime("A")], false)
+    openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Unavailable storage" } })
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })) })
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.storageWriteError)
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe("Unavailable storage")
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual([savedAnime("A")])
+  })
+
+  it.each(["changed", "deleted"])("preserves an edit draft when its record was %s in another tab", (change) => {
+    replaceStoredList([savedAnime("A")], false)
+    render(<AnimeTracker />)
+    fireEvent.keyDown(screen.getByRole("button", { name: `${translations.en.animeActions}: Series A` }), { key: "Enter" })
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }))
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "My edit draft" } })
+    const latest = change === "changed" ? [savedAnime("A", 6)] : []
+    replaceStoredList(latest, false)
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect(screen.getByRole("alert").textContent).toContain(translations.en.animeEditConflict)
+    expect((screen.getByLabelText(/^Title/) as HTMLInputElement).value).toBe("My edit draft")
+    expect(JSON.parse(localStorage.getItem(storageKey)!)).toEqual(latest)
+  })
+
+  it("refreshes on returning to the visible page and removes lifecycle listeners on unmount", () => {
+    replaceStoredList([savedAnime("A")], false)
+    const removeWindow = vi.spyOn(window, "removeEventListener")
+    const removeDocument = vi.spyOn(document, "removeEventListener")
+    const { unmount } = render(<AnimeTracker />)
+    replaceStoredList([savedAnime("A", 9)], false)
+    act(() => { document.dispatchEvent(new Event("visibilitychange")) })
+    expect(screen.getByText("9 / 12")).toBeTruthy()
+    unmount()
+    expect(removeWindow).toHaveBeenCalledWith("storage", expect.any(Function))
+    expect(removeWindow).toHaveBeenCalledWith("pageshow", expect.any(Function))
+    expect(removeDocument).toHaveBeenCalledWith("visibilitychange", expect.any(Function))
+  })
+
+  it("warns about a refresh with a draft, then reloads only explicitly saved entries", () => {
+    const { unmount } = openTracker()
+    fireEvent.change(screen.getByLabelText(/^Title/), { target: { value: "Unsaved draft" } })
+    const refresh = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(refresh)
+    expect(refresh.defaultPrevented).toBe(true)
+    expect(localStorage.getItem(storageKey)).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    const savedRefresh = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(savedRefresh)
+    expect(savedRefresh.defaultPrevented).toBe(false)
+    unmount()
+    render(<AnimeTracker />)
+    expect(screen.getByText("Unsaved draft")).toBeTruthy()
+    expect(screen.queryByRole("dialog")).toBeNull()
   })
 })
 

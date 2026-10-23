@@ -96,6 +96,44 @@ describe("speech session lifecycle", () => {
     expect(queue).toEqual([])
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it.each(["visibilitychange", "pagehide"])("stops recognition on %s without reviving it on return", eventName => {
+    const { recognition, result } = setupRecognition()
+    const visible = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    const lateResult = recognition.onresult!
+    act(() => {
+      if (eventName === "visibilitychange") visible.mockReturnValue("hidden")
+      ;(eventName === "visibilitychange" ? document : window).dispatchEvent(new Event(eventName))
+      lateResult(result)
+      recognition.end()
+      vi.advanceTimersByTime(10000)
+    })
+    expect(recognition.abort).toHaveBeenCalledTimes(1)
+    expect(recognition.start).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: translations.en.startListening })).toBeTruthy()
+    expect(screen.queryByText("BINGO!")).toBeNull()
+    expect(screen.getByText(translations.en.speechBackgroundPaused)).toBeTruthy()
+    expect(cancel).toHaveBeenCalled()
+    act(() => {
+      visible.mockReturnValue("visible")
+      window.dispatchEvent(new Event("pageshow"))
+      document.dispatchEvent(new Event("visibilitychange"))
+      vi.advanceTimersByTime(10000)
+    })
+    expect(recognition.start).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole("button", { name: translations.en.startListening }))
+    expect(recognition.start).toHaveBeenCalledTimes(2)
+  })
+
+  it("clears a pending speech restart when the page is hidden", () => {
+    const { recognition } = setupRecognition()
+    act(() => recognition.end())
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => window.dispatchEvent(new Event("pagehide")))
+    expect(vi.getTimerCount()).toBe(0)
+    act(() => vi.advanceTimersByTime(10000))
+    expect(recognition.start).toHaveBeenCalledTimes(1)
+  })
 })
 
 function mark(number: number) {

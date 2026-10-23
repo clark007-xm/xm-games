@@ -35,6 +35,7 @@ import { useLocale } from "@/lib/locale-context"
 import type { TranslationKey } from "@/lib/i18n"
 import { GameHeader } from "@/components/game-header"
 import { InlineNotice } from "@/components/inline-notice"
+import { runWithStorageLock } from "@/lib/storage-lock"
 import { 
   Plus, 
   Minus, 
@@ -101,6 +102,14 @@ interface JikanAnime {
 const STORAGE_KEY = "xm-games-anime-tracker"
 const IMAGE_CACHE_KEY = "xm-games-anime-images"
 
+class AnimeStorageError extends Error {
+  constructor(public readonly translationKey: "storageReadError" | "storageWriteError" | "animeEditConflict") {
+    super(translationKey)
+  }
+}
+
+type AnimeMutation = (latest: Anime[]) => Anime[]
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -109,24 +118,25 @@ function isAnime(value: unknown): value is Anime {
   if (!isRecord(value)) return false
 
   return (
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    (value.totalEpisodes === null || typeof value.totalEpisodes === "number") &&
-    typeof value.currentEpisode === "number" &&
+    typeof value.id === "string" && value.id.length > 0 &&
+    typeof value.title === "string" && value.title.trim().length > 0 &&
+    (value.totalEpisodes === null || (typeof value.totalEpisodes === "number" && Number.isSafeInteger(value.totalEpisodes) && value.totalEpisodes >= 1)) &&
+    typeof value.currentEpisode === "number" && Number.isSafeInteger(value.currentEpisode) && value.currentEpisode >= 0 &&
+    (value.totalEpisodes === null || value.currentEpisode <= value.totalEpisodes) &&
     ["watching", "completed", "planned", "paused", "dropped"].includes(
       String(value.status)
     ) &&
     ["anime", "drama", "movie"].includes(String(value.type)) &&
-    (value.rating === null || typeof value.rating === "number") &&
+    (value.rating === null || (typeof value.rating === "number" && Number.isFinite(value.rating) && value.rating >= 0 && value.rating <= 10)) &&
     typeof value.notes === "string" &&
     typeof value.imageUrl === "string" &&
-    typeof value.addedAt === "number" &&
-    typeof value.updatedAt === "number"
+    typeof value.addedAt === "number" && Number.isFinite(value.addedAt) &&
+    typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt)
   )
 }
 
 function isAnimeList(value: unknown): value is Anime[] {
-  return Array.isArray(value) && value.every(isAnime)
+  return Array.isArray(value) && value.every(isAnime) && new Set(value.map(anime => anime.id)).size === value.length
 }
 
 function isImageCache(value: unknown): value is Record<string, string> {
@@ -155,6 +165,7 @@ export function AnimeTracker() {
   const { t } = useLocale()
   const [animeList, setAnimeList] = useState<Anime[]>([])
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const saveCommitted = useRef(false)
   const [editingAnime, setEditingAnime] = useState<Anime | null>(null)
   const [activeTab, setActiveTab] = useState<AnimeStatus | "all">("watching")
@@ -175,17 +186,18 @@ export function AnimeTracker() {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [selectedSearchTitle, setSelectedSearchTitle] = useState<string | null>(null)
   const [imageCache, setImageCache] = useState<Record<string, string>>({})
-  const [isStorageReady, setIsStorageReady] = useState(false)
   const [storageError, setStorageError] = useState<"storageReadError" | "storageWriteError" | null>(null)
-  const [storageAttempt, setStorageAttempt] = useState(0)
+  const [editConflict, setEditConflict] = useState(false)
+  const mounted = useRef(false)
+  const outstandingWrites = useRef(0)
+  const failedWrites = useRef<AnimeMutation[]>([])
+  const formSession = useRef(0)
   const [searchError, setSearchError] = useState(false)
   const [searchEmpty, setSearchEmpty] = useState(false)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [formError, setFormError] = useState(false)
 
-  // Load both persisted values before enabling writes. The ready guard is
-  // important in development too, where Strict Mode replays effects.
-  useEffect(() => {
+  const refreshSavedList = useCallback(() => {
     try {
       const savedAnimeList = parseStoredValue(
         localStorage.getItem(STORAGE_KEY),
@@ -194,29 +206,105 @@ export function AnimeTracker() {
         "saved anime list"
       )
       setAnimeList(savedAnimeList)
-      setIsStorageReady(true)
+      if (failedWrites.current.length === 0) {
+        setStorageError(error => error === "storageReadError" ? null : error)
+      }
     } catch {
-      // Preserve unreadable user data. A failed read must never enable writes.
       setStorageError("storageReadError")
     }
+  }, [])
+
+  // Reading is never a write. Every mutation below reads the latest saved list
+  // while holding a cross-tab lock, including when storage events are delayed.
+  useEffect(() => {
+    mounted.current = true
+    refreshSavedList()
     try {
       setImageCache(parseStoredValue(localStorage.getItem(IMAGE_CACHE_KEY), {}, isImageCache, "image cache"))
     } catch { /* The optional cover cache can be rebuilt by later searches. */ }
-  }, [])
 
-  // Persist only after the initial read has completed. This prevents the
-  // component's empty initial state from replacing existing user data.
-  useEffect(() => {
-    if (!isStorageReady) return
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(animeList))
-      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(imageCache))
-      setStorageError(null)
-    } catch {
-      setStorageError("storageWriteError")
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== localStorage) return
+      if (event.key === STORAGE_KEY || event.key === null) refreshSavedList()
     }
-  }, [animeList, imageCache, isStorageReady, storageAttempt])
+    const onVisible = () => { if (document.visibilityState === "visible") refreshSavedList() }
+    window.addEventListener("storage", onStorage)
+    window.addEventListener("pageshow", refreshSavedList)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      mounted.current = false
+      window.removeEventListener("storage", onStorage)
+      window.removeEventListener("pageshow", refreshSavedList)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [refreshSavedList])
+
+  const persistMutation = (mutation: AnimeMutation, onSuccess?: () => void) => {
+    outstandingWrites.current++
+    let settled = false
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      outstandingWrites.current--
+      // Form edits stay in the open dialog; Retry uses its current values.
+      // Button operations retain their deltas, not a stale list snapshot.
+      if (!onSuccess) failedWrites.current.push(mutation)
+      if (!mounted.current) return
+      if (onSuccess) {
+        saveCommitted.current = false
+        setIsSaving(false)
+      }
+      if (error instanceof AnimeStorageError && error.translationKey === "animeEditConflict") {
+        setEditConflict(true)
+        if (failedWrites.current.length === 0) setStorageError(null)
+        return
+      }
+      setStorageError(error instanceof AnimeStorageError && error.translationKey === "storageReadError"
+        ? "storageReadError" : "storageWriteError")
+    }
+    try {
+      void runWithStorageLock(STORAGE_KEY, () => {
+        try {
+          let latest: Anime[]
+          try {
+            latest = parseStoredValue(localStorage.getItem(STORAGE_KEY), [], isAnimeList, "saved anime list")
+          } catch { throw new AnimeStorageError("storageReadError") }
+          if (mounted.current) setAnimeList(latest)
+          const next = mutation(latest)
+          if (next !== latest) {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) }
+            catch { throw new AnimeStorageError("storageWriteError") }
+          }
+          settled = true
+          outstandingWrites.current--
+          if (!mounted.current) return
+          setAnimeList(next)
+          if (failedWrites.current.length === 0) setStorageError(null)
+          onSuccess?.()
+        } catch (error) { fail(error) }
+      }).catch(fail)
+    } catch (error) { fail(error) }
+  }
+
+  // Explicitly saved records survive refresh. Warn before dropping a draft or
+  // a write that is still waiting for storage; never auto-save an unfinished form.
+  useEffect(() => {
+    const hasDraft = isAddDialogOpen && (
+      formTitle !== (editingAnime?.title ?? "") ||
+      formTotalEpisodes !== (editingAnime?.totalEpisodes?.toString() ?? "") ||
+      formCurrentEpisode !== (editingAnime?.currentEpisode.toString() ?? "0") ||
+      formStatus !== (editingAnime?.status ?? "watching") || formType !== (editingAnime?.type ?? "anime") ||
+      formRating !== (editingAnime?.rating?.toString() ?? "") ||
+      formNotes !== (editingAnime?.notes ?? "") || formImageUrl !== (editingAnime?.imageUrl ?? "")
+    )
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasDraft && outstandingWrites.current === 0 && failedWrites.current.length === 0) return
+      event.preventDefault()
+      event.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [isAddDialogOpen, editingAnime, formTitle, formTotalEpisodes, formCurrentEpisode, formStatus, formType, formRating, formNotes, formImageUrl])
 
   // Each query owns its timer and request. Cleanup also guards responses whose
   // fetch/JSON promises finish after the query or dialog has changed.
@@ -282,6 +370,13 @@ export function AnimeTracker() {
         ...prev,
         [anime.title.toLowerCase().trim()]: imageUrl
       }))
+      // The optional image cache must not cause the anime list to be rewritten.
+      void runWithStorageLock(IMAGE_CACHE_KEY, () => {
+        let latest: Record<string, string> = {}
+        try { latest = parseStoredValue(localStorage.getItem(IMAGE_CACHE_KEY), {}, isImageCache, "image cache") }
+        catch { /* Cover cache entries can be rebuilt. */ }
+        localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify({ ...latest, [anime.title.toLowerCase().trim()]: imageUrl }))
+      }).catch(() => { /* A missing cache never invalidates a saved record. */ })
     }
     setFormTotalEpisodes(anime.episodes?.toString() ?? "")
     setFormRating(anime.score?.toString() ?? "")
@@ -289,6 +384,12 @@ export function AnimeTracker() {
   }
 
   const resetForm = useCallback(() => {
+    formSession.current++
+    setIsSaving(false)
+    setEditConflict(false)
+    if (failedWrites.current.length === 0 && outstandingWrites.current === 0) {
+      setStorageError(error => error === "storageWriteError" ? null : error)
+    }
     setFormError(false)
     setSelectedSearchTitle(null)
     setFormTitle("")
@@ -305,6 +406,8 @@ export function AnimeTracker() {
   }, [])
 
   const openEditDialog = (anime: Anime) => {
+    formSession.current++
+    setEditConflict(false)
     saveCommitted.current = false
     setFormError(false)
     setEditingAnime(anime)
@@ -326,17 +429,29 @@ export function AnimeTracker() {
     const totalEps = formTotalEpisodes ? Number(formTotalEpisodes) : null
     const currentEp = Number(formCurrentEpisode)
     const rating = formRating ? Number(formRating) : null
-    if (!Number.isInteger(currentEp) || currentEp < 0 ||
-        (totalEps !== null && (!Number.isInteger(totalEps) || totalEps < 1 || currentEp > totalEps)) ||
+    if (!Number.isSafeInteger(currentEp) || currentEp < 0 ||
+        (totalEps !== null && (!Number.isSafeInteger(totalEps) || totalEps < 1 || currentEp > totalEps)) ||
         (rating !== null && (!Number.isFinite(rating) || rating < 0 || rating > 10))) {
       setFormError(true)
       return
     }
 
     saveCommitted.current = true
+    setIsSaving(true)
+    setEditConflict(false)
+    const session = formSession.current
+    const saved = () => {
+      if (session !== formSession.current) return
+      resetForm()
+      setIsAddDialogOpen(false)
+    }
     if (editingAnime) {
-      // Update existing
-      setAnimeList(list => list.map(a => 
+      persistMutation(list => {
+        const current = list.find(a => a.id === editingAnime.id)
+        if (!current || JSON.stringify(current) !== JSON.stringify(editingAnime)) {
+          throw new AnimeStorageError("animeEditConflict")
+        }
+        return list.map(a =>
         a.id === editingAnime.id 
           ? {
               ...a,
@@ -351,7 +466,8 @@ export function AnimeTracker() {
               updatedAt: now,
             }
           : a
-      ))
+        )
+      }, saved)
     } else {
       // Add new
       const newAnime: Anime = {
@@ -367,20 +483,25 @@ export function AnimeTracker() {
         addedAt: now,
         updatedAt: now,
       }
-      setAnimeList(list => [newAnime, ...list])
+      persistMutation(list => list.some(a => a.id === newAnime.id) ? list : [newAnime, ...list], saved)
     }
+  }
 
-    resetForm()
-    setIsAddDialogOpen(false)
+  const retryStorage = () => {
+    const pending = failedWrites.current.splice(0)
+    if (pending.length > 0) pending.forEach(mutation => persistMutation(mutation))
+    else if (isAddDialogOpen && !editConflict && formTitle.trim()) handleSave()
+    else refreshSavedList()
   }
 
   const handleDelete = (id: string) => {
-    setAnimeList(list => list.filter(a => a.id !== id))
+    persistMutation(list => list.filter(a => a.id !== id))
   }
 
   const incrementEpisode = (id: string) => {
-    setAnimeList(list => list.map(a => {
+    persistMutation(list => list.map(a => {
       if (a.id !== id) return a
+      if (a.currentEpisode >= Number.MAX_SAFE_INTEGER) return a
       if (a.totalEpisodes !== null && a.currentEpisode >= a.totalEpisodes) return a
       const newEp = a.currentEpisode + 1
       const isCompleted = a.totalEpisodes && newEp >= a.totalEpisodes
@@ -394,7 +515,7 @@ export function AnimeTracker() {
   }
 
   const decrementEpisode = (id: string) => {
-    setAnimeList(list => list.map(a => {
+    persistMutation(list => list.map(a => {
       if (a.id !== id) return a
       const newEp = Math.max(0, a.currentEpisode - 1)
       return {
@@ -452,7 +573,7 @@ export function AnimeTracker() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 sm:p-4">
       <div className="mx-auto max-w-6xl">
-        {storageError && <InlineNotice className="mb-4">{t(storageError)} <Button size="sm" variant="outline" className="mt-2" onClick={() => storageError === "storageReadError" ? window.location.reload() : setStorageAttempt(attempt => attempt + 1)}>{t("retry")}</Button></InlineNotice>}
+        {storageError && !isAddDialogOpen && <InlineNotice className="mb-4">{t(storageError)} <Button size="sm" variant="outline" className="mt-2" onClick={retryStorage}>{t("retry")}</Button></InlineNotice>}
         <GameHeader
           layout="tool"
           homeIcon="back"
@@ -466,7 +587,8 @@ export function AnimeTracker() {
           descriptionClassName="hidden text-sm text-slate-400 sm:block"
           actions={
               <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-                if (open) saveCommitted.current = false
+                if (!open && isSaving) return
+                if (open) { saveCommitted.current = false; formSession.current++ }
                 setIsAddDialogOpen(open)
                 if (!open) resetForm()
               }}>
@@ -485,8 +607,10 @@ export function AnimeTracker() {
                       {editingAnime ? t("editAnimeDescription") : t("addAnimeDescription")}
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <fieldset disabled={isSaving} className="grid min-w-0 gap-4 py-4">
                     {formError && <InlineNotice>{t("animeFormError")}</InlineNotice>}
+                    {editConflict && <InlineNotice>{t("animeEditConflict")}</InlineNotice>}
+                    {storageError && <InlineNotice>{t(storageError)} <Button size="sm" variant="outline" className="mt-2" onClick={retryStorage}>{t("retry")}</Button></InlineNotice>}
 {/* Title with Search */}
                                     <div className="relative grid gap-2" onBlur={(event) => {
                                       if (!event.currentTarget.contains(event.relatedTarget)) setShowSearchResults(false)
@@ -598,6 +722,7 @@ export function AnimeTracker() {
                           id="currentEp"
                           type="number"
                           min="0"
+                          max={Number.MAX_SAFE_INTEGER}
                           value={formCurrentEpisode}
                           onChange={(e) => setFormCurrentEpisode(e.target.value)}
                           className="border-slate-600 bg-slate-700"
@@ -610,6 +735,7 @@ export function AnimeTracker() {
                           id="totalEp"
                           type="number"
                           min="1"
+                          max={Number.MAX_SAFE_INTEGER}
                           value={formTotalEpisodes}
                           onChange={(e) => setFormTotalEpisodes(e.target.value)}
                           placeholder={t("ongoing")}
@@ -673,14 +799,15 @@ export function AnimeTracker() {
                         className="border-slate-600 bg-slate-700"
                       />
                     </div>
-                  </div>
+                  </fieldset>
                   <DialogFooter className="gap-2 sm:gap-0">
                     <DialogClose asChild>
-                      <Button variant="outline" className="border-slate-600">
+                      <Button variant="outline" className="border-slate-600" disabled={isSaving}>
                         {t("cancel")}
                       </Button>
                     </DialogClose>
-                    <Button onClick={handleSave} disabled={!formTitle.trim()}>
+                    <Button onClick={handleSave} disabled={!formTitle.trim() || isSaving}>
+                      {isSaving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                       {t("save")}
                     </Button>
                   </DialogFooter>
@@ -742,7 +869,7 @@ export function AnimeTracker() {
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 sm:py-16">
                 <Tv className="mb-4 h-12 w-12 opacity-50 sm:h-16 sm:w-16" />
                 <p className="mb-4 text-base sm:text-lg">{t("noAnime")}</p>
-                <Button onClick={() => { saveCommitted.current = false; setIsAddDialogOpen(true) }} className="gap-2">
+                <Button onClick={() => { saveCommitted.current = false; formSession.current++; setIsAddDialogOpen(true) }} className="gap-2">
                   <Plus className="h-4 w-4" />
                   {t("addFirstAnime")}
                 </Button>
@@ -865,7 +992,7 @@ export function AnimeTracker() {
                               size="sm"
                               onClick={() => incrementEpisode(anime.id)}
                               aria-label={`${t("increaseEpisode")}: ${anime.title}`}
-                              disabled={anime.totalEpisodes !== null && anime.currentEpisode >= anime.totalEpisodes}
+                              disabled={anime.currentEpisode >= Number.MAX_SAFE_INTEGER || (anime.totalEpisodes !== null && anime.currentEpisode >= anime.totalEpisodes)}
                               className="h-9 w-9 border-slate-600 bg-slate-700 p-0 text-white hover:bg-slate-600"
                             >
                               <Plus className="h-4 w-4" aria-hidden="true" />

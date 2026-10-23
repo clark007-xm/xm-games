@@ -89,6 +89,9 @@ export const translations = {
     animeFormError: "集数需为非负整数，总集数至少为 1 且不能少于当前集数；评分需在 0–10 之间。",
     retry: "重试",
     highScoreStorageError: "无法读写设备存储，最高分暂时只保留在本页。你可以继续游戏。",
+    backgroundPaused: "切到后台后已暂停，准备好后请手动继续。",
+    speechBackgroundPaused: "切到后台后已停止语音识别，需要时请重新开始。",
+    animeEditConflict: "此记录已在其他标签页修改或删除。你的输入仍保留，请取消后重新打开最新记录再编辑。",
 
     // Tetris
     tetris: "俄罗斯方块",
@@ -327,6 +330,9 @@ export const translations = {
     animeFormError: "Episodes must be whole numbers: current at least 0, total at least 1 and not below current. Rating must be 0–10.",
     retry: "Try again",
     highScoreStorageError: "Device storage is unavailable. High scores are kept on this page only. You can keep playing.",
+    backgroundPaused: "Paused while this page was in the background. Resume when you're ready.",
+    speechBackgroundPaused: "Speech recognition stopped while this page was in the background. Start it again when needed.",
+    animeEditConflict: "This record was changed or deleted in another tab. Your draft is preserved. Cancel and reopen the latest record before editing again.",
 
     // Tetris
     tetris: "Tetris",
@@ -565,6 +571,9 @@ export const translations = {
     animeFormError: "จำนวนตอนต้องเป็นจำนวนเต็ม ตอนปัจจุบันอย่างน้อย 0 ตอนทั้งหมดอย่างน้อย 1 และไม่น้อยกว่าตอนปัจจุบัน คะแนนต้องอยู่ระหว่าง 0–10",
     retry: "ลองอีกครั้ง",
     highScoreStorageError: "ใช้พื้นที่จัดเก็บของอุปกรณ์ไม่ได้ คะแนนสูงสุดจะเก็บไว้เฉพาะหน้านี้ คุณยังเล่นต่อได้",
+    backgroundPaused: "หยุดชั่วคราวเมื่อหน้านี้อยู่เบื้องหลัง เมื่อพร้อมแล้วให้กดเล่นต่อ",
+    speechBackgroundPaused: "หยุดการรู้จำเสียงเมื่อหน้านี้อยู่เบื้องหลัง เริ่มใหม่ได้เมื่อต้องการ",
+    animeEditConflict: "รายการนี้ถูกแก้ไขหรือลบในแท็บอื่น ร่างของคุณยังอยู่ โปรดยกเลิกแล้วเปิดรายการล่าสุดเพื่อแก้ไขอีกครั้ง",
 
     // Tetris
     tetris: "เทตริส",

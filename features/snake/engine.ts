@@ -26,6 +26,7 @@ export interface SnakeState {
 export type SnakeAction =
   | { type: "hydrateHighScore"; highScore: number }
   | { type: "start"; foodRoll: number }
+  | { type: "pause" }
   | { type: "togglePause" }
   | { type: "changeDirection"; direction: Position }
   | { type: "tick"; foodRoll: number }
@@ -164,6 +165,8 @@ export function snakeReducer(state: SnakeState, action: SnakeAction): SnakeState
         phase: food ? "playing" : "won",
       }
     }
+    case "pause":
+      return state.phase === "playing" ? { ...state, phase: "paused" } : state
     case "togglePause":
       if (state.phase === "playing") return { ...state, phase: "paused" }
       if (state.phase === "paused") return { ...state, phase: "playing" }

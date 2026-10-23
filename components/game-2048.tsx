@@ -8,6 +8,7 @@ import { GameHeader } from "@/components/game-header"
 import { InlineNotice } from "@/components/inline-notice"
 import { GameRulesDialog } from "@/components/game-rules-dialog"
 import { shouldIgnoreGameKey } from "@/lib/game-input"
+import { useHighScore } from "@/lib/use-high-score"
 import { RotateCcw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Board = (number | null)[][]
@@ -170,28 +171,15 @@ export function Game2048() {
       : { up: "Move up", down: "Move down", left: "Move left", right: "Move right", empty: "empty" }
   const [board, setBoard] = useState<Board>(createInitialBoard)
   const [score, setScore] = useState(0)
-  const [bestScore, setBestScore] = useState(0)
+  const { highScore: bestScore, storageUnavailable, recordScore } = useHighScore("2048-best")
   const [gameOver, setGameOver] = useState(false)
   const [won, setWon] = useState(false)
-  const [storageUnavailable, setStorageUnavailable] = useState(false)
   // Native keyboard and touch events can arrive before React commits a render.
-  const liveGame = useRef({ board, score, bestScore, gameOver, won })
+  const liveGame = useRef({ board, score, gameOver, won })
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null)
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("2048-best")
-      const parsed = saved ? Number.parseInt(saved, 10) : 0
-      const best = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-      liveGame.current.bestScore = best
-      setBestScore(best)
-    } catch {
-      setStorageUnavailable(true)
-    }
-  }, [])
-
   const handleMove = useCallback((direction: "left" | "right" | "up" | "down") => {
-    const { board, score, bestScore, gameOver, won } = liveGame.current
+    const { board, score, gameOver, won } = liveGame.current
     if (gameOver) return
 
     const { newBoard, score: addedScore, moved } = moveInDirection(board, direction)
@@ -203,26 +191,18 @@ export function Game2048() {
     const nextWon = won || hasWon(boardWithNewTile)
     const nextGameOver = !canMove(boardWithNewTile)
     liveGame.current = {
-      board: boardWithNewTile, score: newScore, bestScore: Math.max(bestScore, newScore),
+      board: boardWithNewTile, score: newScore,
       won: nextWon, gameOver: nextGameOver,
     }
     setBoard(boardWithNewTile)
     
     setScore(newScore)
     
-    if (newScore > bestScore) {
-      setBestScore(newScore)
-      try {
-        localStorage.setItem("2048-best", String(newScore))
-        setStorageUnavailable(false)
-      } catch {
-        setStorageUnavailable(true)
-      }
-    }
+    if (addedScore > 0) recordScore(newScore)
     
     setWon(nextWon)
     setGameOver(nextGameOver)
-  }, [])
+  }, [recordScore])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

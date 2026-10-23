@@ -27,13 +27,31 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("zh")
 
   useEffect(() => {
-    try {
-      const savedLocale = localStorage.getItem(LOCALE_STORAGE_KEY)
-      if (isLocale(savedLocale)) {
-        setLocaleState(savedLocale)
+    const readLocale = () => {
+      try {
+        const savedLocale = localStorage.getItem(LOCALE_STORAGE_KEY)
+        if (savedLocale === null) setLocaleState("zh")
+        else if (isLocale(savedLocale)) setLocaleState(savedLocale)
+      } catch {
+        // Keep the current language when storage is unavailable.
       }
-    } catch {
-      // Storage can be unavailable in privacy-restricted browser contexts.
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== localStorage) return
+      if (event.key === null || event.key === LOCALE_STORAGE_KEY) readLocale()
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") readLocale()
+    }
+
+    readLocale()
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener("pageshow", readLocale)
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => {
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener("pageshow", readLocale)
+      document.removeEventListener("visibilitychange", handleVisibility)
     }
   }, [])
 

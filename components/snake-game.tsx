@@ -1,11 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react"
+import { useCallback, useEffect, useReducer, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
 import { shouldIgnoreGameKey } from "@/lib/game-input"
+import { usePageVisibility } from "@/lib/use-page-visibility"
+import { useHighScore } from "@/lib/use-high-score"
 import { InlineNotice } from "@/components/inline-notice"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react"
 import {
@@ -18,62 +20,37 @@ import {
 export function SnakeGame() {
   const { t } = useLocale()
   const [game, dispatch] = useReducer(snakeReducer, undefined, createInitialSnakeState)
-  const persistedHighScoreRef = useRef<number | null>(null)
-  const [storageUnavailable, setStorageUnavailable] = useState(false)
+  const { highScore, storageUnavailable, recordScore } = useHighScore("snakeHighScore")
   const [round, setRound] = useState(0)
-  const { food, highScore, phase, score, snake, speed } = game
+  const { food, phase, score, snake, speed } = game
   const isPlaying = phase === "playing"
   const isPaused = phase === "paused"
   const isGameOver = phase === "gameOver"
   const isWon = phase === "won"
+  const [backgroundPaused, setBackgroundPaused] = useState(false)
+  const { isVisible, isPageVisible } = usePageVisibility(() => {
+    if (isPlaying) setBackgroundPaused(true)
+    // A start/resume may already be queued even before its render commits.
+    dispatch({ type: "pause" })
+  })
 
-  // Load high score from localStorage
-  useEffect(() => {
-    let highScore = 0
-    try {
-      const saved = localStorage.getItem("snakeHighScore")
-      const parsed = saved ? Number.parseInt(saved, 10) : 0
-      highScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-    } catch {
-      setStorageUnavailable(true)
-    }
-
-    persistedHighScoreRef.current = highScore
-    dispatch({ type: "hydrateHighScore", highScore })
-  }, [])
-
-  // Keep persistence outside the reducer so state transitions stay pure.
-  useEffect(() => {
-    if (
-      persistedHighScoreRef.current === null ||
-      highScore <= persistedHighScoreRef.current
-    ) {
-      return
-    }
-
-    try {
-      localStorage.setItem("snakeHighScore", highScore.toString())
-      persistedHighScoreRef.current = highScore
-      setStorageUnavailable(false)
-    } catch {
-      setStorageUnavailable(true)
-    }
-  }, [highScore])
+  // Persist earned scores independently of the current round and other open tabs.
+  useEffect(() => { recordScore(score) }, [score, recordScore])
 
   // Game loop
   useEffect(() => {
-    if (!isPlaying) return
+    if (!isPlaying || !isVisible || !isPageVisible()) return
     let active = true
 
     const gameLoop = window.setInterval(() => {
-      if (active) dispatch({ type: "tick", foodRoll: Math.random() })
+      if (active && isPageVisible()) dispatch({ type: "tick", foodRoll: Math.random() })
     }, speed)
 
     return () => {
       active = false
       window.clearInterval(gameLoop)
     }
-  }, [isPlaying, speed, round])
+  }, [isPlaying, speed, round, isVisible, isPageVisible])
 
   const changeDirection = useCallback((newDir: Position) => {
     dispatch({ type: "changeDirection", direction: newDir })
@@ -117,11 +94,15 @@ export function SnakeGame() {
   }, [isPlaying, changeDirection])
 
   const startGame = () => {
+    if (!isPageVisible()) return
+    setBackgroundPaused(false)
     setRound(value => value + 1)
     dispatch({ type: "start", foodRoll: Math.random() })
   }
 
   const togglePause = () => {
+    if (!isPageVisible()) return
+    setBackgroundPaused(false)
     dispatch({ type: "togglePause" })
   }
 
@@ -136,6 +117,7 @@ export function SnakeGame() {
       <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         <h1 className="text-3xl font-bold text-white">{t("snake")}</h1>
         {storageUnavailable && <InlineNotice className="max-w-md">{t("highScoreStorageError")}</InlineNotice>}
+        {backgroundPaused && <p role="status" className="max-w-md text-center text-sm text-slate-300">{t("backgroundPaused")}</p>}
 
         {/* Score Display */}
         <div className="flex gap-8 text-center" role="status" aria-live="polite">

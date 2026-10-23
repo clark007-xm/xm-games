@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
 import { GameRulesDialog } from "@/components/game-rules-dialog"
+import { usePageVisibility } from "@/lib/use-page-visibility"
 import {
   countFlags,
   createEmptyBoard,
@@ -76,6 +77,15 @@ export function MinesweeperGame() {
   const [timer, setTimer] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
   const [inputMode, setInputMode] = useState<InputMode>("reveal")
+  const elapsedMsRef = useRef(0)
+  const activeSinceRef = useRef<number | null>(null)
+  const stopClock = useCallback(() => {
+    if (activeSinceRef.current === null) return
+    elapsedMsRef.current += performance.now() - activeSinceRef.current
+    activeSinceRef.current = null
+    setTimer(Math.floor(elapsedMsRef.current / 1000))
+  }, [])
+  const { isVisible, visibilityVersion, isPageVisible } = usePageVisibility(stopClock)
 
   const a11y = accessibleText[locale]
 
@@ -83,6 +93,8 @@ export function MinesweeperGame() {
   const flagCount = countFlags(board)
 
   const initGame = useCallback(() => {
+    elapsedMsRef.current = 0
+    activeSinceRef.current = null
     setBoard(createEmptyBoard(rows, cols))
     setGameStatus("playing")
     setFirstClick(true)
@@ -96,14 +108,20 @@ export function MinesweeperGame() {
   }, [initGame])
 
   useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (timerActive && gameStatus === "playing") {
-      interval = setInterval(() => {
-        setTimer(t => t + 1)
-      }, 1000)
+    if (!timerActive || gameStatus !== "playing" || !isVisible || !isPageVisible()) return
+    let active = true
+    activeSinceRef.current = performance.now()
+    const interval = setInterval(() => {
+      if (!active || !isPageVisible() || activeSinceRef.current === null) return
+      const elapsed = elapsedMsRef.current + performance.now() - activeSinceRef.current
+      setTimer(Math.floor(elapsed / 1000))
+    }, 250)
+    return () => {
+      active = false
+      clearInterval(interval)
+      stopClock()
     }
-    return () => clearInterval(interval)
-  }, [timerActive, gameStatus])
+  }, [timerActive, gameStatus, isVisible, visibilityVersion, isPageVisible, stopClock])
 
   const revealCell = useCallback((row: number, col: number) => {
     if (gameStatus !== "playing") return

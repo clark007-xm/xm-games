@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 
+vi.mock("@/lib/storage-lock", () => ({
+  runWithStorageLock: (_name: string, operation: () => void) => Promise.resolve(operation()),
+}))
+
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
@@ -281,12 +285,18 @@ describe("tracker exception recovery", () => {
   it("shows failed saving and retries the same data after storage recovers", () => {
     const save = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {throw new Error("Quota")})
     render(<AnimeTracker />)
+    expect(screen.queryByRole("alert")).toBeNull()
+    fireEvent.click(screen.getByRole("button", {name:translations.en.addAnime}))
+    fireEvent.change(screen.getByLabelText(/^Title/), {target:{value:"Saved after recovery"}})
+    fireEvent.click(screen.getByRole("button", {name:translations.en.save}))
     expect(screen.getByRole("alert").textContent).toContain(translations.en.storageWriteError)
+    expect(screen.getByRole("dialog")).toBeTruthy()
     capture("anime-storage-write-error")
     save.mockRestore()
     fireEvent.click(screen.getByRole("button", {name:translations.en.retry}))
     expect(screen.queryByRole("alert")).toBeNull()
-    expect(localStorage.getItem("xm-games-anime-tracker")).toBe("[]")
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(JSON.parse(localStorage.getItem("xm-games-anime-tracker")!)[0].title).toBe("Saved after recovery")
   })
 
   it("recovers a failed search, explains empty results, and validates form ranges", async () => {
