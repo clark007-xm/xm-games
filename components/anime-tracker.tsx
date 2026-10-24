@@ -683,11 +683,11 @@ export function AnimeTracker() {
                                       )}
                                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <div className="grid gap-2">
+                    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                      <div className="grid min-w-0 gap-2">
                         <Label htmlFor="type">{t("animeType")}</Label>
                         <Select value={formType} onValueChange={(v) => setFormType(v as "anime" | "drama" | "movie")}>
-                          <SelectTrigger id="type" className="border-slate-600 bg-slate-700">
+                          <SelectTrigger id="type" className="min-h-9 w-full min-w-0 whitespace-normal border-slate-600 bg-slate-700 text-left data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-slate-600 bg-slate-700">
@@ -698,10 +698,10 @@ export function AnimeTracker() {
                         </Select>
                       </div>
 
-                      <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-2">
                         <Label htmlFor="status">{t("animeStatus")}</Label>
                         <Select value={formStatus} onValueChange={(v) => setFormStatus(v as AnimeStatus)}>
-                          <SelectTrigger id="status" className="border-slate-600 bg-slate-700">
+                          <SelectTrigger id="status" className="min-h-9 w-full min-w-0 whitespace-normal border-slate-600 bg-slate-700 text-left data-[size=default]:h-auto *:data-[slot=select-value]:line-clamp-none">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-slate-600 bg-slate-700">
@@ -879,7 +879,7 @@ export function AnimeTracker() {
                 {sortedList.map((anime) => (
                   <Card 
                     key={anime.id} 
-                    className="overflow-hidden border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500"
+                    className="min-w-0 overflow-hidden border-slate-700 bg-slate-800/50 transition-all hover:border-slate-500"
                   >
                     {/* Card with horizontal layout on mobile */}
                     <div className="flex sm:block">
@@ -907,7 +907,7 @@ export function AnimeTracker() {
                       </div>
 
                       {/* Content area */}
-                      <div className="flex flex-1 flex-col p-3 sm:p-0">
+                      <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-0">
                         <CardHeader className="p-0 pb-2 sm:p-4 sm:pb-2">
                           <div className="flex items-start justify-between gap-1">
                             <div className="min-w-0 flex-1">
@@ -958,9 +958,9 @@ export function AnimeTracker() {
                         <CardContent className="flex-1 p-0 sm:p-4 sm:pt-0">
                           {/* Episode Progress */}
                           <div className="mb-2 sm:mb-3">
-                            <div className="mb-1 flex items-center justify-between text-xs sm:text-sm">
+                            <div className="mb-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs sm:text-sm">
                               <span className="text-slate-400">{t("progress")}</span>
-                              <span className="text-white">
+                              <span className="min-w-0 max-w-full text-white [overflow-wrap:anywhere]">
                                 {anime.currentEpisode} / {anime.totalEpisodes || "?"}
                               </span>
                             </div>
@@ -973,7 +973,7 @@ export function AnimeTracker() {
                           </div>
 
                           {/* Episode Controls */}
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -984,7 +984,7 @@ export function AnimeTracker() {
                             >
                               <Minus className="h-4 w-4" aria-hidden="true" />
                             </Button>
-                            <span className="text-sm font-bold text-white sm:text-lg">
+                            <span className="min-w-0 text-center text-sm font-bold text-white [overflow-wrap:anywhere] sm:text-lg">
                               {t("episode")} {anime.currentEpisode}
                             </span>
                             <Button

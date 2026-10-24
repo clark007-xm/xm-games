@@ -21,7 +21,7 @@ const SPEECH_LANGUAGE = {
 interface BingoCard {
   id: string
   numbers: (number | null)[][]
-  name: string
+  number: number
 }
 
 // Generate a random Bingo card
@@ -199,11 +199,24 @@ export function BingoCards() {
     window.speechSynthesis.speak(utterance)
   }, [locale, isPageVisible])
 
-  // Keep the active recognizer in sync without rebuilding its event handlers.
+  // A recognition request captures its language when it starts. End the old
+  // request before resuming through the existing restart path in the new locale.
   useEffect(() => {
+    const languageChanged = localeRef.current !== locale
     localeRef.current = locale
-    if (recognitionRef.current) {
-      recognitionRef.current.lang = SPEECH_LANGUAGE[locale]
+    const recognition = recognitionRef.current
+    if (recognition) {
+      recognition.lang = SPEECH_LANGUAGE[locale]
+      if (languageChanged && shouldListenRef.current &&
+          (recognitionPhase.current === "starting" || recognitionPhase.current === "listening")) {
+        recognitionPhase.current = "stopping"
+        try { recognition.abort() } catch {
+          recognitionPhase.current = "idle"
+          shouldListenRef.current = false
+          setIsListening(false)
+          setSpeechError("speechUnavailable")
+        }
+      }
     }
   }, [locale])
 
@@ -359,10 +372,10 @@ export function BingoCards() {
     const newCard: BingoCard = {
       id: crypto.randomUUID(),
       numbers: generateBingoCard(),
-      name: `${t("card")} ${nextCardNumber.current++}`,
+      number: nextCardNumber.current++,
     }
     setCards(prev => [...prev, newCard])
-  }, [t])
+  }, [])
 
   const removeCard = useCallback((id: string) => {
     setCards(prev => prev.filter(card => card.id !== id))
@@ -403,7 +416,7 @@ export function BingoCards() {
       if (hasBingo && !bingoCards.has(card.id)) {
         // New bingo detected!
         setBingoCards(prev => new Set([...prev, card.id]))
-        speakBingo(card.name)
+        speakBingo(`${t("card")} ${card.number}`)
       } else if (!hasBingo && bingoCards.has(card.id)) {
         // Bingo was lost (e.g., after reset)
         setBingoCards(prev => {
@@ -413,7 +426,7 @@ export function BingoCards() {
         })
       }
     })
-  }, [cards, drawnNumbers, bingoCards, speakBingo])
+  }, [cards, drawnNumbers, bingoCards, speakBingo, t])
 
   // Reset bingoCards when all marks are reset
   useEffect(() => {
@@ -552,6 +565,7 @@ export function BingoCards() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cards.map((card) => {
               const hasBingo = checkBingo(card.numbers, drawnNumbers)
+              const cardName = `${t("card")} ${card.number}`
               return (
                 <Card
                   key={card.id}
@@ -562,7 +576,7 @@ export function BingoCards() {
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg text-white">
-                        {card.name}
+                        {cardName}
                         {hasBingo && (
                           <span className="ml-2 rounded bg-amber-500 px-2 py-0.5 text-xs font-bold text-black" role="status" aria-live="assertive">
                             BINGO!
@@ -573,7 +587,7 @@ export function BingoCards() {
                         variant="ghost"
                         size="icon"
                         onClick={() => removeCard(card.id)}
-                        aria-label={`${t("delete")} ${card.name}`}
+                        aria-label={`${t("delete")} ${cardName}`}
                         className="h-8 w-8 text-slate-400 hover:bg-red-500/20 hover:text-red-400"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -593,7 +607,7 @@ export function BingoCards() {
                       ))}
                     </div>
                     {/* Bingo Grid */}
-                    <div className="grid grid-cols-5 gap-1" role="group" aria-label={card.name}>
+                    <div className="grid grid-cols-5 gap-1" role="group" aria-label={cardName}>
                       {card.numbers.flat().map((num, index) => {
                         const isMarked = num !== null && drawnNumbers.has(num)
                         const isFree = num === null

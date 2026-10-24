@@ -51,7 +51,7 @@ export function GameRulesDialog({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "max-h-[80vh] w-full max-w-md overflow-y-auto",
+          "max-h-[80vh] w-[calc(100%-2rem)] max-w-md overflow-y-auto",
           contentClassName,
         )}
       >

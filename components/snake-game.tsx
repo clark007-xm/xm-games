@@ -9,6 +9,7 @@ import { shouldIgnoreGameKey } from "@/lib/game-input"
 import { usePageVisibility } from "@/lib/use-page-visibility"
 import { useHighScore } from "@/lib/use-high-score"
 import { InlineNotice } from "@/components/inline-notice"
+import arcadeStyles from "@/components/arcade-layout.module.css"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react"
 import {
   createInitialSnakeState,
@@ -107,20 +108,21 @@ export function SnakeGame() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className={`${arcadeStyles.viewport} flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4`}>
       <GameHeader
         homeIcon="back"
         homeLabel={t("appName")}
         homeButtonClassName="text-slate-400 hover:text-white"
       />
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
-        <h1 className="text-3xl font-bold text-white">{t("snake")}</h1>
-        {storageUnavailable && <InlineNotice className="max-w-md">{t("highScoreStorageError")}</InlineNotice>}
-        {backgroundPaused && <p role="status" className="max-w-md text-center text-sm text-slate-300">{t("backgroundPaused")}</p>}
+      <main className={`${arcadeStyles.main} flex flex-1 flex-col items-center justify-center gap-6 py-4`}>
+        <h1 className={`${arcadeStyles.title} text-3xl font-bold text-white`}>{t("snake")}</h1>
+        {storageUnavailable && <InlineNotice className={`${arcadeStyles.notice} max-w-md`}>{t("highScoreStorageError")}</InlineNotice>}
+        {backgroundPaused && <p role="status" className={`${arcadeStyles.notice} max-w-md text-center text-sm text-slate-300`}>{t("backgroundPaused")}</p>}
 
+        <div className={arcadeStyles.snakeLayout}>
         {/* Score Display */}
-        <div className="flex gap-8 text-center" role="status" aria-live="polite">
+        <div className={`${arcadeStyles.snakeSummary} flex gap-8 text-center`} role="status" aria-live="polite">
           <div>
             <div className="text-sm text-slate-400">{t("score")}</div>
             <div className="text-2xl font-bold text-green-400">{score}</div>
@@ -132,7 +134,7 @@ export function SnakeGame() {
         </div>
 
         {/* Game Board */}
-        <Card className="w-full max-w-[365px] border-slate-700 bg-slate-800/50">
+        <Card className={`${arcadeStyles.board} w-full max-w-[365px] border-slate-700 bg-slate-800/50`}>
           <CardContent className="p-2">
             <div
               className="grid gap-[1px] rounded bg-slate-900 p-1"
@@ -172,7 +174,7 @@ export function SnakeGame() {
 
         {/* Game Over */}
         {(isGameOver || isWon) && (
-          <div className="text-center" role="status" aria-live="assertive">
+          <div className={`${arcadeStyles.terminal} text-center`} role="status" aria-live="assertive">
             <div
               className={`text-2xl font-bold ${isWon ? "text-green-400" : "text-red-500"}`}
             >
@@ -185,7 +187,7 @@ export function SnakeGame() {
         )}
 
         {/* Controls */}
-        <div className="flex gap-2">
+        <div className={`${arcadeStyles.controls} flex gap-2`}>
           {phase === "idle" && (
             <Button onClick={startGame} className="gap-2 bg-green-600 hover:bg-green-700">
               <Play className="h-4 w-4" aria-hidden="true" />
@@ -213,33 +215,33 @@ export function SnakeGame() {
         </div>
 
         {/* Mobile Controls */}
-        <div className="flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex">
+        <div className={`${arcadeStyles.directionPad} flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex`}>
           <Button
             variant="outline"
             size="icon"
-            className="h-12 w-12"
+            className={`${arcadeStyles.padUp} h-12 w-12`}
             aria-label={`${t("snakeControlsMobile")} ↑`}
             disabled={!isPlaying}
             onClick={() => changeDirection({ x: 0, y: -1 })}
           >
             <ChevronUp className="h-6 w-6" aria-hidden="true" />
           </Button>
-          <div className="flex gap-2">
+          <div className={`${arcadeStyles.padRow} flex gap-2`}>
             <Button
               variant="outline"
               size="icon"
-              className="h-12 w-12"
+              className={`${arcadeStyles.padLeft} h-12 w-12`}
               aria-label={`${t("snakeControlsMobile")} ←`}
               disabled={!isPlaying}
               onClick={() => changeDirection({ x: -1, y: 0 })}
             >
               <ChevronLeft className="h-6 w-6" aria-hidden="true" />
             </Button>
-            <div className="h-12 w-12" />
+            <div className={`${arcadeStyles.padSpacer} h-12 w-12`} />
             <Button
               variant="outline"
               size="icon"
-              className="h-12 w-12"
+              className={`${arcadeStyles.padRight} h-12 w-12`}
               aria-label={`${t("snakeControlsMobile")} →`}
               disabled={!isPlaying}
               onClick={() => changeDirection({ x: 1, y: 0 })}
@@ -250,7 +252,7 @@ export function SnakeGame() {
           <Button
             variant="outline"
             size="icon"
-            className="h-12 w-12"
+            className={`${arcadeStyles.padDown} h-12 w-12`}
             aria-label={`${t("snakeControlsMobile")} ↓`}
             disabled={!isPlaying}
             onClick={() => changeDirection({ x: 0, y: 1 })}
@@ -258,9 +260,10 @@ export function SnakeGame() {
             <ChevronDown className="h-6 w-6" aria-hidden="true" />
           </Button>
         </div>
+        </div>
 
         {/* Instructions */}
-        <div className="text-center text-sm text-slate-500">
+        <div className={`${arcadeStyles.instructions} text-center text-sm text-slate-500`}>
           <span className="hidden md:inline [@media(pointer:coarse)]:hidden">{t("snakeControls")}</span>
           <span className="md:hidden [@media(pointer:coarse)]:inline">{t("snakeControlsMobile")}</span>
         </div>

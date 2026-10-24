@@ -178,6 +178,25 @@ export function Game2048() {
   const liveGame = useRef({ board, score, gameOver, won })
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null)
 
+  useEffect(() => {
+    // A layout or coordinate-space change invalidates a gesture's old origin.
+    const cancelSwipe = () => { swipeStart.current = null }
+    const viewport = window.visualViewport
+    const orientation = window.screen.orientation
+    cancelSwipe()
+    window.addEventListener("resize", cancelSwipe)
+    window.addEventListener("orientationchange", cancelSwipe)
+    viewport?.addEventListener("resize", cancelSwipe)
+    orientation?.addEventListener("change", cancelSwipe)
+    return () => {
+      cancelSwipe()
+      window.removeEventListener("resize", cancelSwipe)
+      window.removeEventListener("orientationchange", cancelSwipe)
+      viewport?.removeEventListener("resize", cancelSwipe)
+      orientation?.removeEventListener("change", cancelSwipe)
+    }
+  }, [locale])
+
   const handleMove = useCallback((direction: "left" | "right" | "up" | "down") => {
     const { board, score, gameOver, won } = liveGame.current
     if (gameOver) return
@@ -289,7 +308,7 @@ export function Game2048() {
         )}
 
         {/* Game board */}
-        <div className="rounded-lg bg-amber-700 p-3">
+        <div className="w-full max-w-[304px] rounded-lg bg-amber-700 p-3 sm:max-w-[368px]">
           <div
             className="grid touch-none select-none grid-cols-4 gap-2"
             role="group"
@@ -305,8 +324,7 @@ export function Game2048() {
                   role="img"
                   aria-label={`${rowIndex + 1}, ${colIndex + 1}, ${cell || directionLabels.empty}`}
                   className={`
-                    flex h-16 w-16 items-center justify-center rounded-md font-bold transition-all
-                    sm:h-20 sm:w-20
+                    flex aspect-square min-w-0 items-center justify-center rounded-md font-bold transition-all
                     ${cell ? TILE_COLORS[cell] || "bg-amber-800 text-white" : "bg-amber-600/50"}
                     ${cell && cell >= 100 ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"}
                     ${cell && cell >= 1000 ? "text-lg sm:text-xl" : ""}

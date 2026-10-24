@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useEffectEvent, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -184,12 +184,14 @@ export function BingoGame() {
     speakNumber(newNumber)
   }, [speakNumber, isPageVisible])
 
+  const drawNextNumber = useEffectEvent(drawNumber)
+
   // 自动抽取逻辑
   useEffect(() => {
     let active = true
     if (isAutoMode && isPlaying && isVisible && isPageVisible() && remainingNumbers.length > 0) {
       autoTimerRef.current = setInterval(() => {
-        if (active) drawNumber()
+        if (active) drawNextNumber()
       }, autoInterval * 1000)
     }
 
@@ -200,7 +202,7 @@ export function BingoGame() {
       }
       autoTimerRef.current = null
     }
-  }, [isAutoMode, isPlaying, autoInterval, drawNumber, remainingNumbers.length, isVisible, isPageVisible])
+  }, [isAutoMode, isPlaying, autoInterval, remainingNumbers.length, isVisible, isPageVisible])
 
   useEffect(() => {
     return () => window.speechSynthesis?.cancel()

@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/locale-context"
 import { GameHeader } from "@/components/game-header"
 import { shouldIgnoreGameKey } from "@/lib/game-input"
 import { usePageVisibility } from "@/lib/use-page-visibility"
+import arcadeStyles from "@/components/arcade-layout.module.css"
 import { Play, Pause, RotateCcw, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown } from "lucide-react"
 import {
   BOARD_WIDTH,
@@ -132,20 +133,21 @@ export function TetrisGame() {
   const displayBoard = getDisplayBoard(state)
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className={`${arcadeStyles.viewport} flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4`}>
       <GameHeader
         homeIcon="back"
         homeLabel={t("appName")}
         homeButtonClassName="text-slate-400 hover:text-white"
       />
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
-        <h1 className="text-3xl font-bold text-white">{t("tetris")}</h1>
-        {backgroundPaused && <p role="status" className="max-w-md text-center text-sm text-slate-300">{t("backgroundPaused")}</p>}
+      <main className={`${arcadeStyles.main} flex flex-1 flex-col items-center justify-center gap-6 py-4`}>
+        <h1 className={`${arcadeStyles.title} text-3xl font-bold text-white`}>{t("tetris")}</h1>
+        {backgroundPaused && <p role="status" className={`${arcadeStyles.notice} max-w-md text-center text-sm text-slate-300`}>{t("backgroundPaused")}</p>}
 
-        <div className="grid w-full max-w-[400px] grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
+        <div className={arcadeStyles.tetrisLayout}>
+        <div className={`${arcadeStyles.tetrisFrame} grid w-full max-w-[400px] grid-cols-[minmax(0,1fr)_6.5rem] gap-3`}>
           {/* Game Board */}
-          <Card className="min-w-0 self-start border-slate-700 bg-slate-800/50">
+          <Card className={`${arcadeStyles.board} min-w-0 self-start border-slate-700 bg-slate-800/50`}>
             <CardContent className="p-2">
               <div
                 className="grid gap-[1px] rounded bg-slate-900 p-1"
@@ -169,13 +171,14 @@ export function TetrisGame() {
           </Card>
 
           {/* Side Panel */}
-          <div className="flex flex-col gap-4">
+          <div className={`${arcadeStyles.tetrisSidebar} flex flex-col gap-4`}>
+            <div className={arcadeStyles.tetrisSummary}>
             {/* Next Piece */}
-            <Card className="border-slate-700 bg-slate-800/50">
-              <CardHeader className="p-3 pb-1">
+            <Card className={`${arcadeStyles.nextPiece} border-slate-700 bg-slate-800/50`}>
+              <CardHeader className={`${arcadeStyles.nextHeading} p-3 pb-1`}>
                 <CardTitle className="text-sm text-slate-400">{t("nextPiece")}</CardTitle>
               </CardHeader>
-              <CardContent className="p-3 pt-1">
+              <CardContent className={`${arcadeStyles.nextContent} p-3 pt-1`}>
                 <div className="grid h-16 w-16 place-items-center rounded bg-slate-900 p-2" role="img" aria-label={`${t("nextPiece")}: ${nextPiece}`}>
                   <div className="grid gap-[1px]">
                     {TETROMINO_SHAPES[nextPiece].map((row, y) => (
@@ -197,8 +200,8 @@ export function TetrisGame() {
             </Card>
 
             {/* Stats */}
-            <Card className="border-slate-700 bg-slate-800/50" role="status" aria-live="polite">
-              <CardContent className="space-y-2 p-3">
+            <Card className={`${arcadeStyles.tetrisStats} border-slate-700 bg-slate-800/50`} role="status" aria-live="polite">
+              <CardContent className={`${arcadeStyles.statsContent} space-y-2 p-3`}>
                 <div className="text-center">
                   <div className="text-xs text-slate-400">{t("score")}</div>
                   <div className="text-xl font-bold text-white">{score}</div>
@@ -213,9 +216,10 @@ export function TetrisGame() {
                 </div>
               </CardContent>
             </Card>
+            </div>
 
             {/* Controls */}
-            <div className="flex flex-col gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:whitespace-normal [&>button]:px-2">
+            <div className={`${arcadeStyles.controls} flex flex-col gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:whitespace-normal [&>button]:px-2`}>
               {phase === "idle" && (
                 <Button onClick={startGame} className="gap-2 bg-green-600 hover:bg-green-700">
                   <Play className="h-4 w-4" aria-hidden="true" />
@@ -257,7 +261,7 @@ export function TetrisGame() {
 
         {/* Game Over */}
         {phase === "gameOver" && (
-          <div className="text-center" role="status" aria-live="assertive">
+          <div className={`${arcadeStyles.terminal} text-center`} role="status" aria-live="assertive">
             <div className="text-2xl font-bold text-red-500">{t("gameOver")}</div>
             <div className="text-slate-400">
               {t("finalScore")}: {score}
@@ -266,22 +270,22 @@ export function TetrisGame() {
         )}
 
         {/* Mobile Controls */}
-        <div className="flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex">
+        <div className={`${arcadeStyles.directionPad} flex flex-col items-center gap-2 md:hidden [@media(pointer:coarse)]:flex`}>
           <Button
             variant="outline"
             size="icon"
-            className="h-12 w-12"
+            className={`${arcadeStyles.padUp} h-12 w-12`}
             onClick={rotatePiece}
             aria-label={mobileLabels.rotate}
             disabled={phase !== "playing"}
           >
             <RotateCcw className="h-6 w-6" aria-hidden="true" />
           </Button>
-          <div className="flex gap-2">
+          <div className={`${arcadeStyles.padRow} flex gap-2`}>
             <Button
               variant="outline"
               size="icon"
-              className="h-12 w-12"
+              className={`${arcadeStyles.padLeft} h-12 w-12`}
               onClick={() => movePiece(-1, 0)}
               aria-label={mobileLabels.left}
               disabled={phase !== "playing"}
@@ -291,7 +295,7 @@ export function TetrisGame() {
             <Button
               variant="outline"
               size="icon"
-              className="h-12 w-12"
+              className={`${arcadeStyles.padDrop} h-12 w-12`}
               onClick={hardDrop}
               aria-label={mobileLabels.drop}
               disabled={phase !== "playing"}
@@ -301,7 +305,7 @@ export function TetrisGame() {
             <Button
               variant="outline"
               size="icon"
-              className="h-12 w-12"
+              className={`${arcadeStyles.padRight} h-12 w-12`}
               onClick={() => movePiece(1, 0)}
               aria-label={mobileLabels.right}
               disabled={phase !== "playing"}
@@ -312,7 +316,7 @@ export function TetrisGame() {
           <Button
             variant="outline"
             size="icon"
-            className="h-12 w-12"
+            className={`${arcadeStyles.padDown} h-12 w-12`}
             onClick={() => movePiece(0, 1)}
             aria-label={mobileLabels.down}
             disabled={phase !== "playing"}
@@ -320,9 +324,10 @@ export function TetrisGame() {
             <ChevronDown className="h-6 w-6" aria-hidden="true" />
           </Button>
         </div>
+        </div>
 
         {/* Instructions */}
-        <div className="text-center text-sm text-slate-500">
+        <div className={`${arcadeStyles.instructions} text-center text-sm text-slate-500`}>
           <span className="hidden md:inline [@media(pointer:coarse)]:hidden">{t("tetrisControls")}</span>
           <span className="md:hidden [@media(pointer:coarse)]:inline">{t("tetrisControlsMobile")}</span>
         </div>
